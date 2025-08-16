@@ -278,9 +278,12 @@ class _HomeScreenState extends State<HomeScreen> {
                         color: DesignSystem.textPrimary,
                       ),
                     ),
-                    if (_currentGroup.description != null && _currentGroup.description!.isNotEmpty)
+                    if (_currentGroup.description != null &&
+                        _currentGroup.description!.isNotEmpty)
                       Padding(
-                        padding: const EdgeInsets.only(top: DesignSystem.spacing4),
+                        padding: const EdgeInsets.only(
+                          top: DesignSystem.spacing4,
+                        ),
                         child: Text(
                           _currentGroup.description!,
                           style: DesignSystem.body2.copyWith(
@@ -294,10 +297,7 @@ class _HomeScreenState extends State<HomeScreen> {
               // 모임 변경 버튼
               IconButton(
                 onPressed: _showGroupSelector,
-                icon: Icon(
-                  Icons.swap_horiz,
-                  color: DesignSystem.textSecondary,
-                ),
+                icon: Icon(Icons.swap_horiz, color: DesignSystem.textSecondary),
                 tooltip: '모임 변경',
               ),
             ],
@@ -1672,7 +1672,8 @@ class _HomeScreenState extends State<HomeScreen> {
                       fontWeight: FontWeight.w600,
                     ),
                   ),
-                  if (group.description != null && group.description!.isNotEmpty)
+                  if (group.description != null &&
+                      group.description!.isNotEmpty)
                     Text(
                       group.description!,
                       style: DesignSystem.caption.copyWith(
@@ -1682,7 +1683,11 @@ class _HomeScreenState extends State<HomeScreen> {
                 ],
               ),
             ),
-            Icon(Icons.arrow_forward_ios, color: DesignSystem.textSecondary, size: 16),
+            Icon(
+              Icons.arrow_forward_ios,
+              color: DesignSystem.textSecondary,
+              size: 16,
+            ),
           ],
         ),
       ),

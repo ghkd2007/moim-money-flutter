@@ -17,7 +17,6 @@ class CreateGroupScreen extends StatefulWidget {
 
 class _CreateGroupScreenState extends State<CreateGroupScreen>
     with SingleTickerProviderStateMixin {
-  final _formKey = GlobalKey<FormState>();
   final _nameController = TextEditingController();
   final _descriptionController = TextEditingController();
   final _budgetController = TextEditingController();
@@ -95,46 +94,43 @@ class _CreateGroupScreenState extends State<CreateGroupScreen>
           opacity: _fadeAnimation,
           child: SlideTransition(
             position: _slideAnimation,
-            child: Form(
-              key: _formKey,
-              child: SingleChildScrollView(
-                padding: DesignSystem.getScreenPadding(context),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const SizedBox(height: DesignSystem.spacing24),
+            child: SingleChildScrollView(
+              padding: DesignSystem.getScreenPadding(context),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const SizedBox(height: DesignSystem.spacing24),
 
-                    // 환영 메시지
-                    _buildWelcomeMessage(),
+                  // 환영 메시지
+                  _buildWelcomeMessage(),
 
-                    const SizedBox(height: DesignSystem.spacing32),
+                  const SizedBox(height: DesignSystem.spacing32),
 
-                    // 모임 이름
-                    _buildNameSection(),
+                  // 모임 이름
+                  _buildNameSection(),
 
-                    const SizedBox(height: DesignSystem.spacing24),
+                  const SizedBox(height: DesignSystem.spacing24),
 
-                    // 모임 설명
-                    _buildDescriptionSection(),
+                  // 모임 설명
+                  _buildDescriptionSection(),
 
-                    const SizedBox(height: DesignSystem.spacing24),
+                  const SizedBox(height: DesignSystem.spacing24),
 
-                    // 초기 예산
-                    _buildBudgetSection(),
+                  // 초기 예산
+                  _buildBudgetSection(),
 
-                    const SizedBox(height: DesignSystem.spacing24),
+                  const SizedBox(height: DesignSystem.spacing24),
 
-                    // 초대 이메일 섹션 (선택사항)
-                    _buildInviteSection(),
+                  // 초대 이메일 섹션 (선택사항)
+                  _buildInviteSection(),
 
-                    const SizedBox(height: DesignSystem.spacing32),
+                  const SizedBox(height: DesignSystem.spacing32),
 
-                    // 모임 생성 버튼
-                    _buildCreateButton(),
+                  // 모임 생성 버튼
+                  _buildCreateButton(),
 
-                    const SizedBox(height: DesignSystem.spacing32),
-                  ],
-                ),
+                  const SizedBox(height: DesignSystem.spacing32),
+                ],
               ),
             ),
           ),
@@ -182,18 +178,6 @@ class _CreateGroupScreenState extends State<CreateGroupScreen>
           hint: '예: 가족 모임, 친구 여행, 동호회 활동',
           controller: _nameController,
           isRequired: true,
-          validator: (value) {
-            if (value == null || value.isEmpty) {
-              return '모임 이름을 입력해주세요.';
-            }
-            if (value.length < 2) {
-              return '모임 이름은 2자 이상이어야 합니다.';
-            }
-            if (value.length > 20) {
-              return '모임 이름은 20자 이하여야 합니다.';
-            }
-            return null;
-          },
         ),
       ],
     );
@@ -260,18 +244,6 @@ class _CreateGroupScreenState extends State<CreateGroupScreen>
             controller: _budgetController,
             isRequired: false,
             keyboardType: TextInputType.number,
-            validator: (value) {
-              if (_hasInitialBudget && (value == null || value.isEmpty)) {
-                return '예산을 입력해주세요.';
-              }
-              if (_hasInitialBudget && value != null) {
-                final amount = int.tryParse(value.replaceAll(',', ''));
-                if (amount == null || amount < 0) {
-                  return '올바른 금액을 입력해주세요.';
-                }
-              }
-              return null;
-            },
           ),
       ],
     );
@@ -301,9 +273,7 @@ class _CreateGroupScreenState extends State<CreateGroupScreen>
               decoration: BoxDecoration(
                 color: DesignSystem.info.withOpacity(0.1),
                 borderRadius: BorderRadius.circular(DesignSystem.radiusSmall),
-                border: Border.all(
-                  color: DesignSystem.info.withOpacity(0.3),
-                ),
+                border: Border.all(color: DesignSystem.info.withOpacity(0.3)),
               ),
               child: Text(
                 '선택사항',
@@ -315,9 +285,9 @@ class _CreateGroupScreenState extends State<CreateGroupScreen>
             ),
           ],
         ),
-        
+
         const SizedBox(height: DesignSystem.spacing8),
-        
+
         Text(
           '친구들을 초대하여 함께 모임을 관리할 수 있습니다.\n초대하지 않아도 모임 생성이 가능합니다.',
           style: DesignSystem.body2.copyWith(
@@ -332,10 +302,12 @@ class _CreateGroupScreenState extends State<CreateGroupScreen>
         Row(
           children: [
             Expanded(
-              child: AppEmailField(
+              child: AppTextField(
+                label: '초대할 이메일 주소',
+                hint: '초대할 이메일 주소',
                 controller: _emailController,
                 isRequired: false,
-                hint: '초대할 이메일 주소',
+                keyboardType: TextInputType.emailAddress,
               ),
             ),
             const SizedBox(width: DesignSystem.spacing12),
@@ -458,7 +430,60 @@ class _CreateGroupScreenState extends State<CreateGroupScreen>
 
   /// 모임 생성 처리
   Future<void> _createGroup() async {
-    if (!_formKey.currentState!.validate()) return;
+    // 필수 필드만 validation (이메일은 선택사항이므로 제외)
+    if (_nameController.text.trim().isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: const Text('모임 이름을 입력해주세요.'),
+          backgroundColor: DesignSystem.error,
+        ),
+      );
+      return;
+    }
+
+    if (_nameController.text.trim().length < 2) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: const Text('모임 이름은 2자 이상이어야 합니다.'),
+          backgroundColor: DesignSystem.error,
+        ),
+      );
+      return;
+    }
+
+    if (_nameController.text.trim().length > 20) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: const Text('모임 이름은 20자 이하여야 합니다.'),
+          backgroundColor: DesignSystem.error,
+        ),
+      );
+      return;
+    }
+
+    // 예산이 활성화된 경우 예산 validation
+    if (_hasInitialBudget && (_budgetController.text.isEmpty || _budgetController.text.trim().isEmpty)) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: const Text('예산을 입력해주세요.'),
+          backgroundColor: DesignSystem.error,
+        ),
+      );
+      return;
+    }
+
+    if (_hasInitialBudget && _budgetController.text.isNotEmpty) {
+      final amount = int.tryParse(_budgetController.text.replaceAll(',', ''));
+      if (amount == null || amount < 0) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: const Text('올바른 금액을 입력해주세요.'),
+            backgroundColor: DesignSystem.error,
+          ),
+        );
+        return;
+      }
+    }
 
     setState(() => _isLoading = true);
 
@@ -474,8 +499,8 @@ class _CreateGroupScreenState extends State<CreateGroupScreen>
       final group = models.Group(
         id: groupRef.id,
         name: _nameController.text.trim(),
-        description: _descriptionController.text.trim().isEmpty 
-            ? null 
+        description: _descriptionController.text.trim().isEmpty
+            ? null
             : _descriptionController.text.trim(),
         ownerId: currentUser.uid,
         members: [currentUser.uid], // 생성자가 첫 번째 멤버
@@ -493,8 +518,8 @@ class _CreateGroupScreenState extends State<CreateGroupScreen>
           .collection('users')
           .doc(currentUser.uid)
           .update({
-        'groupIds': FieldValue.arrayUnion([groupRef.id]),
-      });
+            'groupIds': FieldValue.arrayUnion([groupRef.id]),
+          });
 
       // 초대 이메일이 있는 경우 초대 처리 (향후 구현)
       if (_invitedEmails.isNotEmpty) {
