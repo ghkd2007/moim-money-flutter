@@ -13,6 +13,185 @@
 4. **캘린더뷰** - 날짜별 지출/수입 시각화
 5. **SMS 자동 데이터 추출** - 은행/카드사 문자 자동 인식
 
+## 🏗️ 고급 개발자 관점 - 아키텍처 및 설계 원칙
+
+### 📐 아키텍처 패턴
+- **MVVM + Repository Pattern**: 비즈니스 로직과 UI 분리
+- **Dependency Injection**: 테스트 가능한 구조
+- **SOLID 원칙**: 단일 책임, 개방-폐쇄, 리스코프 치환, 인터페이스 분리, 의존성 역전
+- **Clean Architecture**: 계층별 의존성 방향 준수
+
+### 🔗 의존성 관리 원칙
+```dart
+// ✅ 좋은 예시: 의존성 역전
+abstract class TransactionRepository {
+  Future<List<Transaction>> getTransactions();
+}
+
+class TransactionService {
+  final TransactionRepository _repository;
+  
+  TransactionService(this._repository);
+}
+
+// ❌ 나쁜 예시: 구체 클래스에 직접 의존
+class TransactionService {
+  final FirebaseTransactionRepository _repository = FirebaseTransactionRepository();
+}
+```
+
+### 🎯 설계 패턴 적용
+- **Factory Pattern**: 객체 생성 로직 캡슐화
+- **Observer Pattern**: 상태 변화 알림
+- **Strategy Pattern**: 알고리즘 교체 가능
+- **Builder Pattern**: 복잡한 객체 생성
+
+## 🧪 고급 테스터 관점 - 품질 보증 체계
+
+### 📊 테스트 전략 (Testing Pyramid)
+```
+    🔺 E2E Tests (5%)
+   🔺🔺 Integration Tests (15%)
+🔺🔺🔺🔺🔺 Unit Tests (80%)
+```
+
+### 🎯 테스트 커버리지 목표
+- **Unit Tests**: 90% 이상 (비즈니스 로직 중심)
+- **Integration Tests**: 70% 이상 (서비스 간 연동)
+- **E2E Tests**: 50% 이상 (핵심 사용자 시나리오)
+
+### 🔍 테스트 설계 원칙
+```dart
+// ✅ 좋은 예시: Given-When-Then 패턴
+group('TransactionService Tests', () {
+  test('should create transaction successfully', () {
+    // Given: 유효한 거래 데이터
+    final transaction = Transaction(
+      amount: 50000,
+      description: '식사비',
+      categoryId: 'food',
+    );
+    
+    // When: 거래 생성 요청
+    final result = await service.createTransaction(transaction);
+    
+    // Then: 성공 결과 확인
+    expect(result.isSuccess, isTrue);
+    expect(result.data.id, isNotEmpty);
+  });
+});
+```
+
+### 🚨 테스트 데이터 관리
+- **Test Fixtures**: 재사용 가능한 테스트 데이터
+- **Mock Objects**: 외부 의존성 격리
+- **Test Doubles**: Stub, Spy, Mock, Fake 적절히 활용
+
+## 📋 고급 기획자 관점 - 비즈니스 로직 및 사용자 경험
+
+### 🎯 사용자 스토리 및 시나리오
+```markdown
+## 사용자 스토리: 지출 추가
+**As a** 모임 멤버
+**I want to** 지출을 빠르게 추가할 수 있도록
+**So that** 모임의 재정 상황을 투명하게 공유할 수 있다
+
+## Acceptance Criteria
+- [ ] 3번의 터치로 지출 입력 완료
+- [ ] 카테고리 선택이 직관적
+- [ ] 금액 입력이 오류 방지
+- [ ] 즉시 모임원들에게 알림
+```
+
+### 📱 사용자 여정 맵 (User Journey Map)
+```
+1. 앱 실행 → 2. 모임 선택 → 3. 지출 추가 → 4. 카테고리 선택 → 5. 금액 입력 → 6. 저장 완료
+   ↓           ↓           ↓           ↓           ↓           ↓
+   빠름        직관적      명확한      시각적      오류방지    피드백
+```
+
+### 🎨 UX 원칙 및 가이드라인
+- **Fitts's Law**: 자주 사용하는 기능을 쉽게 접근 가능하게
+- **Hick's Law**: 선택 옵션을 적절히 제한
+- **Miller's Law**: 한 번에 7±2개 항목만 표시
+
+## 🔗 연관성 분석 및 영향도 평가 체계
+
+### 📊 변경사항 영향도 분석 매트릭스
+```
+영향도 레벨:
+🔴 HIGH: 전체 앱 동작에 영향
+🟡 MEDIUM: 특정 기능에 영향
+🟢 LOW: UI/UX 개선만
+⚪ NONE: 코드 스타일만
+```
+
+### 🔍 변경사항 적용 전 체크리스트
+#### 1단계: 직접 영향 분석
+- [ ] 수정 대상 파일 식별
+- [ ] 변경 내용의 범위 파악
+- [ ] 기존 기능과의 호환성 확인
+
+#### 2단계: 간접 영향 분석
+- [ ] **Import 의존성**: 이 파일을 import하는 모든 파일 검색
+- [ ] **Export 의존성**: 이 파일에서 export하는 모든 파일 검색
+- [ ] **공유 모델**: 같은 데이터 구조를 사용하는 파일들 검색
+- [ ] **API 계약**: 외부에서 호출하는 인터페이스 변경 여부
+
+#### 3단계: 테스트 영향 분석
+- [ ] **Unit Tests**: 관련 테스트 파일들 검색 및 업데이트 필요성 확인
+- [ ] **Integration Tests**: 서비스 간 연동 테스트 영향 확인
+- [ ] **E2E Tests**: 사용자 시나리오 테스트 영향 확인
+
+#### 4단계: 문서 및 설정 영향
+- [ ] **API 문서**: 변경된 인터페이스 문서 업데이트
+- [ ] **설정 파일**: 환경 변수, 설정 값 변경 필요성
+- [ ] **의존성**: pubspec.yaml, build.gradle 등 변경 필요성
+
+### 🎯 연관성 분석 자동화 가이드
+```bash
+# 1. 파일 사용처 검색
+grep -r "Transaction" lib/ --include="*.dart"
+
+# 2. Import 관계 분석
+grep -r "import.*transaction" lib/ --include="*.dart"
+
+# 3. 테스트 파일 검색
+find test/ -name "*transaction*" -type f
+
+# 4. 의존성 그래프 생성
+flutter pub deps
+```
+
+### 📋 영향도 분석 예시 시나리오
+
+#### 시나리오 1: Transaction 모델 필드 추가
+```
+🔴 HIGH IMPACT
+직접 영향: models/transaction_model.dart
+간접 영향: 
+  - services/transaction_service.dart (fromMap/toMap 수정 필요)
+  - screens/add_transaction_screen.dart (UI 업데이트 필요)
+  - screens/home_screen.dart (표시 로직 수정 필요)
+테스트 영향:
+  - test/models/transaction_test.dart (새 필드 테스트 추가)
+  - test/services/transaction_service_test.dart (서비스 로직 테스트)
+문서 영향: API 문서, 모델 스키마 문서
+```
+
+#### 시나리오 2: 색상 상수 변경
+```
+🟡 MEDIUM IMPACT
+직접 영향: constants/design_system.dart
+간접 영향:
+  - 모든 UI 화면 (색상 적용된 부분들)
+  - 테마 관련 설정
+테스트 영향:
+  - UI 테스트 (색상 검증)
+  - 접근성 테스트 (대비율)
+문서 영향: 디자인 가이드라인
+```
+
 ## 📁 프로젝트 구조 규칙
 ```
 lib/
@@ -53,7 +232,7 @@ lib/
 /// 사용자 인증 서비스
 /// 이메일과 비밀번호를 사용하여 로그인을 처리합니다.
 class AuthService {
-  /// 사용자 로그인 처리
+  /// 사용자 로인 처리
   /// 
   /// [email] 사용자 이메일
   /// [password] 사용자 비밀번호
@@ -386,6 +565,18 @@ transactions (거래내역)
 
 ## 🔧 코드 품질 도구
 
+### 🚫 AI 어시스턴트 실행 금지 규칙
+```bash
+# ❌ 절대 금지:
+flutter run                    # AI가 자동으로 앱 실행 금지
+flutter test                   # AI가 자동으로 테스트 실행 금지
+flutter build                  # AI가 자동으로 빌드 실행 금지
+
+# ✅ 사용자가 직접 요청한 경우에만 실행 가능
+# 사용자: "앱을 실행해서 테스트해보자"
+# 사용자: "이 기능이 작동하는지 확인해보자"
+```
+
 ### 자동 포맷팅
 ```bash
 # 코드 자동 포맷팅
@@ -451,6 +642,13 @@ flutter pub get
 - [ ] UI/UX 가이드라인 준수
 - [ ] 정기적인 테스트 및 품질 점검
 
+### 🚫 AI 어시스턴트 주의사항
+- [ ] **절대 자동으로 `flutter run` 실행 금지**
+- [ ] **절대 자동으로 `flutter test` 실행 금지**
+- [ ] **절대 자동으로 `flutter build` 실행 금지**
+- [ ] **사용자가 직접 요청한 경우에만 실행 가능**
+- [ ] **코드 수정 후 자동 실행하지 말고 사용자에게 확인 요청**
+
 ## 🤝 팀 협업 가이드
 
 ### 코드 리뷰 시
@@ -482,7 +680,7 @@ flutter pub get
 
 ---
 
-**문서 버전**: 1.0  
+**문서 버전**: 2.0  
 **최종 업데이트**: 2024년 1월  
 **작성자**: 개발팀  
 **검토자**: 프로젝트 매니저

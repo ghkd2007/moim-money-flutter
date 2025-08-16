@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import '../../../constants/design_system.dart';
 import '../../../widgets/common/app_button.dart';
 import '../../../models/models.dart';
+import '../../../services/group_service.dart';
+import '../../../services/app_state_service.dart';
 import 'create_group_screen.dart';
 import 'join_group_screen.dart';
 
@@ -18,8 +20,13 @@ class _GroupScreenState extends State<GroupScreen> {
   // 현재 사용자 ID (추후 Firebase Auth에서 가져올 예정)
   final String _currentUserId = 'current_user_id';
 
-  // 내가 참여하고 있는 모든 모임 (추후 Firebase에서 가져올 예정)
+  // 내가 참여하고 있는 모든 모임
   List<Group> _myGroups = [];
+  bool _isLoading = true;
+
+  // GroupService 인스턴스
+  final GroupService _groupService = GroupService();
+  final AppStateService _appStateService = AppStateService();
 
   @override
   void initState() {
@@ -29,11 +36,26 @@ class _GroupScreenState extends State<GroupScreen> {
 
   /// 내가 참여하고 있는 모임들 로드
   Future<void> _loadMyGroups() async {
-    // TODO: Firebase에서 실제 데이터 로드
-    // 현재는 빈 리스트로 시작
     setState(() {
-      _myGroups = [];
+      _isLoading = true;
     });
+
+    try {
+      print('🔍 모임 목록 로드 시작...');
+      final groups = await _groupService.getMyGroups('current_user_id');
+      print('✅ 모임 목록 로드 완료: ${groups.length}개');
+
+      setState(() {
+        _myGroups = groups;
+        _isLoading = false;
+      });
+    } catch (e) {
+      print('❌ 모임 목록 로드 오류: $e');
+      setState(() {
+        _myGroups = [];
+        _isLoading = false;
+      });
+    }
   }
 
   @override
@@ -78,7 +100,15 @@ class _GroupScreenState extends State<GroupScreen> {
             ),
 
             // 모임 리스트
-            if (_myGroups.isEmpty)
+            if (_isLoading)
+              // 로딩 중
+              SliverToBoxAdapter(
+                child: Padding(
+                  padding: DesignSystem.getScreenPadding(context),
+                  child: _buildLoadingState(),
+                ),
+              )
+            else if (_myGroups.isEmpty)
               // 모임이 없을 때
               SliverToBoxAdapter(
                 child: Padding(
@@ -509,11 +539,15 @@ class _GroupScreenState extends State<GroupScreen> {
 
   /// 모임 상세 화면으로 이동
   void _navigateToGroupDetail(Group group) {
-    // TODO: 모임 상세 화면 구현
+    // 선택된 모임을 AppStateService에 설정
+    _appStateService.selectGroup(group);
+
+    // 성공 메시지 표시
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content: Text('${group.name} 상세 화면으로 이동'),
-        duration: const Duration(seconds: 1),
+        content: Text('${group.name} 모임이 선택되었습니다. 홈 탭에서 확인하세요.'),
+        backgroundColor: DesignSystem.success,
+        duration: const Duration(seconds: 3),
       ),
     );
   }
@@ -635,5 +669,23 @@ class _GroupScreenState extends State<GroupScreen> {
       // 참여 코드로 입장 후 목록 새로고침
       _loadMyGroups();
     });
+  }
+
+  /// 로딩 상태 위젯
+  Widget _buildLoadingState() {
+    return Column(
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: [
+        const SizedBox(height: 80),
+        CircularProgressIndicator(
+          valueColor: AlwaysStoppedAnimation<Color>(DesignSystem.primary),
+        ),
+        const SizedBox(height: DesignSystem.spacing24),
+        Text(
+          '모임 목록을 불러오는 중...',
+          style: DesignSystem.body1.copyWith(color: DesignSystem.textSecondary),
+        ),
+      ],
+    );
   }
 }

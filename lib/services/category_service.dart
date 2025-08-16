@@ -81,26 +81,4 @@ class CategoryService {
       return false;
     }
   }
-
-  /// 샘플 카테고리 데이터를 생성합니다 (개발용).
-  Future<void> createSampleCategories(String groupId) async {
-    try {
-      final List<Map<String, dynamic>> sampleCategories = [
-        {'groupId': groupId, 'name': '식비', 'color': '#FF6B6B', 'icon': '🍽️'},
-        {'groupId': groupId, 'name': '교통비', 'color': '#4ECDC4', 'icon': '🚌'},
-        {'groupId': groupId, 'name': '쇼핑', 'color': '#45B7D1', 'icon': '🛍️'},
-        {'groupId': groupId, 'name': '문화생활', 'color': '#96CEB4', 'icon': '🎬'},
-        {'groupId': groupId, 'name': '의료비', 'color': '#FFEAA7', 'icon': '🏥'},
-        {'groupId': groupId, 'name': '교육비', 'color': '#DDA0DD', 'icon': '📚'},
-      ];
-
-      for (final categoryData in sampleCategories) {
-        await addCategory(Category.fromFirestore(categoryData, ''));
-      }
-
-      print('✅ 샘플 카테고리 생성 완료: ${sampleCategories.length}개');
-    } catch (e) {
-      print('❌ 샘플 카테고리 생성 실패: $e');
-    }
-  }
 }

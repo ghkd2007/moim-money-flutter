@@ -4,6 +4,9 @@ import '../../../constants/design_system.dart';
 import '../../../widgets/common/app_button.dart';
 import '../../../models/models.dart';
 import '../../../services/transaction_service.dart';
+import '../../../services/group_service.dart';
+import '../../../services/app_state_service.dart';
+import '../../../services/category_service.dart';
 import '../group/create_group_screen.dart';
 
 /// 홈 화면
@@ -25,6 +28,9 @@ class _HomeScreenState extends State<HomeScreen> {
 
   // 데이터베이스 연동
   final TransactionService _transactionService = TransactionService();
+  final GroupService _groupService = GroupService();
+  final AppStateService _appStateService = AppStateService();
+  final CategoryService _categoryService = CategoryService();
   List<Transaction> _transactions = [];
   Map<String, dynamic> _groupStatistics = {};
   bool _isLoading = true;
@@ -32,113 +38,20 @@ class _HomeScreenState extends State<HomeScreen> {
   // 거래 추가 모달 상태
   String _selectedTransactionType = 'expense'; // 기본값: 지출
 
-  // 임시 모임 데이터 (추후 Firebase에서 가져올 예정)
-  final Group _currentGroup = Group(
-    id: '1',
-    name: '가족 모임',
-    description: '가족과 함께하는 금융 관리',
-    ownerId: 'user1', // 모임장 추가
-    members: ['user1', 'user2', 'user3', 'user4'],
-    categories: ['cat1', 'cat2', 'cat3'],
-    transactions: ['trans1', 'trans2', 'trans3', 'trans4'],
-    createdAt: DateTime.now(),
-    updatedAt: DateTime.now(),
-  );
+  // 카테고리 데이터 (Firebase에서 동적으로 로드)
+  Map<String, Category> _categories = {};
 
-  // 임시 카테고리 데이터 (추후 Firebase에서 가져올 예정)
-  final Map<String, Category> _categories = {
-    'cat1': const Category(
-      id: 'cat1',
-      groupId: '1',
-      name: '스타벅스',
-      color: Colors.brown,
-      icon: '☕',
-    ),
-    'cat2': const Category(
-      id: 'cat2',
-      groupId: '1',
-      name: '맛집',
-      color: Colors.orange,
-      icon: '🍽️',
-    ),
-    'cat3': const Category(
-      id: 'cat3',
-      groupId: '1',
-      name: '회사',
-      color: Colors.blue,
-      icon: '🏢',
-    ),
-    'cat4': const Category(
-      id: 'cat4',
-      groupId: '1',
-      name: 'CGV',
-      color: Colors.purple,
-      icon: '🎬',
-    ),
-  };
-
-  // 임시 거래 내역 데이터 (추후 Firebase에서 가져올 예정)
-  final Map<String, List<Transaction>> _transactionsByDate = {
-    '2024-01-15': [
-      Transaction(
-        id: '1',
-        groupId: '1',
-        userId: 'user1',
-        type: 'expense',
-        amount: -4500,
-        categoryId: 'cat1',
-        description: '아침 커피',
-        date: DateTime(2024, 1, 15),
-        createdAt: DateTime.now(),
-        updatedAt: DateTime.now(),
-      ),
-      Transaction(
-        id: '2',
-        groupId: '1',
-        userId: 'user1',
-        type: 'expense',
-        amount: -12000,
-        categoryId: 'cat2',
-        description: '점심 식사',
-        date: DateTime(2024, 1, 15),
-        createdAt: DateTime.now(),
-        updatedAt: DateTime.now(),
-      ),
-    ],
-    '2024-01-16': [
-      Transaction(
-        id: '3',
-        groupId: '1',
-        userId: 'user1',
-        type: 'income',
-        amount: 2500000,
-        categoryId: 'cat3',
-        description: '월급',
-        date: DateTime(2024, 1, 16),
-        createdAt: DateTime.now(),
-        updatedAt: DateTime.now(),
-      ),
-    ],
-    '2024-01-17': [
-      Transaction(
-        id: '4',
-        groupId: '1',
-        userId: 'user1',
-        type: 'expense',
-        amount: -15000,
-        categoryId: 'cat4',
-        description: '영화 관람',
-        date: DateTime(2024, 1, 17),
-        createdAt: DateTime.now(),
-        updatedAt: DateTime.now(),
-      ),
-    ],
-  };
+  // 거래 내역 데이터 (Firebase에서 동적으로 로드)
+  Map<String, List<Transaction>> _transactionsByDate = {};
 
   @override
   void initState() {
     super.initState();
     _budgetController.text = _budget.toInt().toString();
+
+    // AppStateService 리스너 등록
+    _appStateService.addListener(_onAppStateChanged);
+
     _loadData();
   }
 
@@ -151,6 +64,21 @@ class _HomeScreenState extends State<HomeScreen> {
     });
   }
 
+  @override
+  void dispose() {
+    _appStateService.removeListener(_onAppStateChanged);
+    _budgetController.dispose();
+    super.dispose();
+  }
+
+  /// AppStateService 상태 변경 리스너
+  void _onAppStateChanged() {
+    if (mounted) {
+      setState(() {});
+      _loadData();
+    }
+  }
+
   /// 데이터 로드
   Future<void> _loadData() async {
     print('🔍 데이터 로드 시작...');
@@ -159,43 +87,84 @@ class _HomeScreenState extends State<HomeScreen> {
     });
 
     try {
-      // 현재 그룹의 거래 내역과 통계 로드
-      print('📊 거래 내역 조회 중...');
-      final transactions = await _transactionService.getTransactionsByGroup(
-        '1',
-      );
-      print('✅ 거래 내역 조회 완료: ${transactions.length}개');
+      // 1. AppStateService에서 현재 모임 정보 가져오기
+      final currentGroup = _appStateService.selectedGroup;
+      final myGroups = _appStateService.myGroups;
 
-      print('📈 통계 계산 중...');
-      final statistics = await _transactionService.getGroupStatistics('1');
-      print('✅ 통계 계산 완료: $statistics');
+      print('👥 현재 모임: ${currentGroup?.name ?? '없음'}');
+      print('👥 전체 모임 수: ${myGroups.length}개');
 
-      setState(() {
-        _transactions = transactions;
-        _groupStatistics = statistics;
-        _isLoading = false;
-      });
+      // 2. 현재 모임의 카테고리, 거래 내역, 통계 로드
+      if (currentGroup != null) {
+        print('🏷️ 카테고리 조회 중...');
+        final categories = await _categoryService.getCategoriesByGroup(
+          currentGroup.id,
+        );
+        print('✅ 카테고리 조회 완료: ${categories.length}개');
+
+        // 카테고리를 Map으로 변환
+        _categories.clear();
+        for (final category in categories) {
+          _categories[category.id] = category;
+        }
+
+        print('📊 거래 내역 조회 중...');
+        final transactions = await _transactionService.getTransactionsByGroup(
+          currentGroup.id,
+        );
+        print('✅ 거래 내역 조회 완료: ${transactions.length}개');
+
+        // 거래 내역을 날짜별로 그룹화
+        _transactionsByDate.clear();
+        for (final transaction in transactions) {
+          final dateKey =
+              '${transaction.date.year}-${transaction.date.month.toString().padLeft(2, '0')}-${transaction.date.day.toString().padLeft(2, '0')}';
+          _transactionsByDate.putIfAbsent(dateKey, () => []).add(transaction);
+        }
+
+        print('📈 통계 계산 중...');
+        final statistics = await _groupService.getGroupStatistics(
+          currentGroup.id,
+        );
+        print('✅ 통계 계산 완료: $statistics');
+
+        setState(() {
+          _transactions = transactions;
+          _groupStatistics = statistics;
+          _isLoading = false;
+        });
+      } else {
+        // 모임이 없는 경우
+        setState(() {
+          _categories.clear();
+          _transactionsByDate.clear();
+          _transactions = [];
+          _groupStatistics = {
+            'totalIncome': 0.0,
+            'totalExpense': 0.0,
+            'remainingBudget': 0.0,
+            'transactionCount': 0,
+            'memberCount': 0,
+          };
+          _isLoading = false;
+        });
+      }
       print('🎉 데이터 로드 완료!');
     } catch (e) {
       print('❌ 데이터 로드 오류: $e');
-      // 오류 발생 시 임시 데이터 사용
+      // 오류 발생 시 기본값 사용
       setState(() {
         _transactions = [];
         _groupStatistics = {
-          'totalIncome': 0,
-          'totalExpense': 0,
-          'remainingBudget': 0,
+          'totalIncome': 0.0,
+          'totalExpense': 0.0,
+          'remainingBudget': 0.0,
           'transactionCount': 0,
+          'memberCount': 0,
         };
         _isLoading = false;
       });
     }
-  }
-
-  @override
-  void dispose() {
-    _budgetController.dispose();
-    super.dispose();
   }
 
   @override
@@ -272,25 +241,90 @@ class _HomeScreenState extends State<HomeScreen> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(
-                      _currentGroup.name,
-                      style: DesignSystem.headline1.copyWith(
-                        color: DesignSystem.textPrimary,
-                      ),
+                    Builder(
+                      builder: (context) {
+                        final currentGroup = _appStateService.selectedGroup;
+                        if (currentGroup != null) {
+                          return Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                currentGroup.name,
+                                style: DesignSystem.headline1.copyWith(
+                                  color: DesignSystem.textPrimary,
+                                ),
+                              ),
+                              if (currentGroup.description != null &&
+                                  currentGroup.description!.isNotEmpty)
+                                Padding(
+                                  padding: const EdgeInsets.only(
+                                    top: DesignSystem.spacing4,
+                                  ),
+                                  child: Text(
+                                    currentGroup.description!,
+                                    style: DesignSystem.body2.copyWith(
+                                      color: DesignSystem.textSecondary,
+                                    ),
+                                  ),
+                                ),
+                            ],
+                          );
+                        } else {
+                          return Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                '모임이 없습니다',
+                                style: DesignSystem.headline1.copyWith(
+                                  color: DesignSystem.textSecondary,
+                                  fontWeight: FontWeight.w500,
+                                ),
+                              ),
+                              Padding(
+                                padding: const EdgeInsets.only(
+                                  top: DesignSystem.spacing4,
+                                ),
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      '새로운 모임을 만들어보세요!',
+                                      style: DesignSystem.body2.copyWith(
+                                        color: DesignSystem.textSecondary,
+                                      ),
+                                    ),
+                                    const SizedBox(
+                                      height: DesignSystem.spacing8,
+                                    ),
+                                    ElevatedButton.icon(
+                                      onPressed: () {
+                                        Navigator.push(
+                                          context,
+                                          MaterialPageRoute(
+                                            builder: (context) =>
+                                                const CreateGroupScreen(),
+                                          ),
+                                        );
+                                      },
+                                      icon: const Icon(Icons.add, size: 18),
+                                      label: const Text('모임 만들기'),
+                                      style: ElevatedButton.styleFrom(
+                                        backgroundColor: DesignSystem.primary,
+                                        foregroundColor: Colors.white,
+                                        padding: const EdgeInsets.symmetric(
+                                          horizontal: DesignSystem.spacing16,
+                                          vertical: DesignSystem.spacing8,
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ],
+                          );
+                        }
+                      },
                     ),
-                    if (_currentGroup.description != null &&
-                        _currentGroup.description!.isNotEmpty)
-                      Padding(
-                        padding: const EdgeInsets.only(
-                          top: DesignSystem.spacing4,
-                        ),
-                        child: Text(
-                          _currentGroup.description!,
-                          style: DesignSystem.body2.copyWith(
-                            color: DesignSystem.textSecondary,
-                          ),
-                        ),
-                      ),
                   ],
                 ),
               ),
@@ -1634,11 +1668,27 @@ class _HomeScreenState extends State<HomeScreen> {
 
             // 모임 목록
             Expanded(
-              child: ListView.builder(
-                padding: const EdgeInsets.all(DesignSystem.spacing20),
-                itemCount: 1, // 임시로 1개만 표시
-                itemBuilder: (context, index) {
-                  return _buildGroupListItem(_currentGroup);
+              child: Builder(
+                builder: (context) {
+                  final currentGroup = _appStateService.selectedGroup;
+                  if (currentGroup != null) {
+                    return ListView.builder(
+                      padding: const EdgeInsets.all(DesignSystem.spacing20),
+                      itemCount: 1, // 임시로 1개만 표시
+                      itemBuilder: (context, index) {
+                        return _buildGroupListItem(currentGroup);
+                      },
+                    );
+                  } else {
+                    return Center(
+                      child: Text(
+                        '참여하고 있는 모임이 없습니다.',
+                        style: DesignSystem.body1.copyWith(
+                          color: DesignSystem.textSecondary,
+                        ),
+                      ),
+                    );
+                  }
                 },
               ),
             ),

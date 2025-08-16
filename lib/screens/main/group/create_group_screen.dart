@@ -462,7 +462,9 @@ class _CreateGroupScreenState extends State<CreateGroupScreen>
     }
 
     // 예산이 활성화된 경우 예산 validation
-    if (_hasInitialBudget && (_budgetController.text.isEmpty || _budgetController.text.trim().isEmpty)) {
+    if (_hasInitialBudget &&
+        (_budgetController.text.isEmpty ||
+            _budgetController.text.trim().isEmpty)) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: const Text('예산을 입력해주세요.'),
@@ -538,6 +540,9 @@ class _CreateGroupScreenState extends State<CreateGroupScreen>
 
         // 이전 화면으로 이동
         Navigator.pop(context);
+
+        // 생성된 모임을 자동으로 선택 (AppStateService에서 처리됨)
+        print('🎯 새로 생성된 모임이 자동으로 선택되었습니다.');
       }
     } catch (e) {
       if (mounted) {

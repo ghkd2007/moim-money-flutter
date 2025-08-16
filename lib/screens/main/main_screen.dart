@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import '../../constants/design_system.dart';
 import '../../services/category_service.dart';
 import '../../models/category_model.dart';
+import '../../services/app_state_service.dart';
+import 'package:firebase_auth/firebase_auth.dart' as auth;
 import 'home/home_screen.dart';
 import 'group/group_screen.dart';
 import 'settings/settings_screen.dart';
@@ -39,6 +41,16 @@ class _MainScreenState extends State<MainScreen> {
   @override
   void initState() {
     super.initState();
+
+    // AppStateService 초기화 - 실제 사용자 ID 사용
+    final currentUser = auth.FirebaseAuth.instance.currentUser;
+    if (currentUser != null) {
+      AppStateService().setCurrentUser(currentUser.uid);
+      print('✅ 사용자 ID 설정: ${currentUser.uid}');
+    } else {
+      print('⚠️ 로그인된 사용자가 없습니다.');
+    }
+
     _loadCategories();
   }
 
