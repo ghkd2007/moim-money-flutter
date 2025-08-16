@@ -7,6 +7,7 @@ import 'package:firebase_auth/firebase_auth.dart' as auth;
 import 'home/home_screen.dart';
 import 'group/group_screen.dart';
 import 'settings/settings_screen.dart';
+import '../onboarding/onboarding_screen.dart';
 
 /// 메인 네비게이션 화면
 /// 로그인 후 사용자가 보게 되는 메인 화면입니다.
@@ -30,6 +31,7 @@ class _MainScreenState extends State<MainScreen> {
   final CategoryService _categoryService = CategoryService();
   List<Category> _categories = [];
   bool _isLoadingCategories = false;
+  String _selectedCategoryId = ''; // 선택된 카테고리의 ID
 
   // 탭 화면들
   final List<Widget> _screens = [
@@ -52,6 +54,40 @@ class _MainScreenState extends State<MainScreen> {
     }
 
     _loadCategories();
+
+    // 모임 상태 확인 및 접근 제어
+    _checkGroupAccess();
+  }
+
+  /// 모임 접근 권한 확인
+  void _checkGroupAccess() {
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      final appStateService = AppStateService();
+      final currentUser = auth.FirebaseAuth.instance.currentUser;
+
+      if (currentUser != null) {
+        print('🔄 모임 접근 권한 확인 중... 사용자: ${currentUser.uid}');
+
+        // Firebase에서 최신 모임 데이터 동기화
+        await appStateService.syncUserGroupsFromFirebase(currentUser.uid);
+
+        // 동기화 후 모임 상태 확인
+        if (appStateService.selectedGroup == null ||
+            appStateService.myGroups.isEmpty) {
+          print('🚫 모임이 없음 - 온보딩으로 강제 이동');
+          Navigator.of(context).pushReplacement(
+            MaterialPageRoute(builder: (context) => const OnboardingScreen()),
+          );
+        } else {
+          print('✅ 모임 접근 권한 확인 완료: ${appStateService.myGroups.length}개 모임');
+        }
+      } else {
+        print('⚠️ 로그인된 사용자가 없음 - 온보딩으로 강제 이동');
+        Navigator.of(context).pushReplacement(
+          MaterialPageRoute(builder: (context) => const OnboardingScreen()),
+        );
+      }
+    });
   }
 
   @override
@@ -341,6 +377,44 @@ class _MainScreenState extends State<MainScreen> {
           ),
           const SizedBox(height: DesignSystem.spacing12),
           _buildCategorySelector(),
+
+          // 선택된 카테고리 표시
+          if (_selectedCategoryId.isNotEmpty)
+            Container(
+              margin: const EdgeInsets.only(top: DesignSystem.spacing16),
+              padding: const EdgeInsets.all(DesignSystem.spacing16),
+              decoration: BoxDecoration(
+                color:
+                    _getSelectedCategory()?.color.withOpacity(0.1) ??
+                    DesignSystem.surface,
+                border: Border.all(
+                  color: _getSelectedCategory()?.color ?? DesignSystem.divider,
+                  width: 1,
+                ),
+                borderRadius: BorderRadius.circular(DesignSystem.radiusMedium),
+              ),
+              child: Row(
+                children: [
+                  Text(
+                    _getSelectedCategory()?.icon ?? '📝',
+                    style: const TextStyle(fontSize: 24),
+                  ),
+                  const SizedBox(width: DesignSystem.spacing12),
+                  Expanded(
+                    child: Text(
+                      _getSelectedCategory()?.name ?? '선택된 카테고리',
+                      style: DesignSystem.body1.copyWith(
+                        color:
+                            _getSelectedCategory()?.color ??
+                            DesignSystem.textPrimary,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+
           const SizedBox(height: DesignSystem.spacing24),
 
           // 설명 입력
@@ -518,75 +592,94 @@ class _MainScreenState extends State<MainScreen> {
       );
     }
 
-    return GestureDetector(
-      onTap: () {
-        _showCategoryPicker();
-      },
-      child: Container(
-        padding: const EdgeInsets.all(DesignSystem.spacing16),
-        decoration: BoxDecoration(
-          border: Border.all(color: DesignSystem.divider),
-          borderRadius: BorderRadius.circular(DesignSystem.radiusMedium),
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          '카테고리 선택',
+          style: DesignSystem.body1.copyWith(
+            color: DesignSystem.textPrimary,
+            fontWeight: FontWeight.w600,
+          ),
         ),
-        child: Row(
-          children: [
-            Icon(Icons.category, color: DesignSystem.textSecondary, size: 24),
-            const SizedBox(width: DesignSystem.spacing12),
-            Expanded(
-              child: Text(
-                '카테고리 선택',
-                style: DesignSystem.body1.copyWith(
-                  color: DesignSystem.textSecondary,
+        const SizedBox(height: DesignSystem.spacing12),
+        GridView.builder(
+          shrinkWrap: true,
+          physics: const NeverScrollableScrollPhysics(),
+          gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+            crossAxisCount: 3,
+            crossAxisSpacing: DesignSystem.spacing12,
+            mainAxisSpacing: DesignSystem.spacing12,
+            childAspectRatio: 1.2,
+          ),
+          itemCount: _categories.length,
+          itemBuilder: (context, index) {
+            final category = _categories[index];
+            final isSelected = _selectedCategoryId == category.id;
+
+            return GestureDetector(
+              onTap: () {
+                setState(() {
+                  _selectedCategoryId = category.id;
+                });
+              },
+              child: Container(
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(
+                    DesignSystem.radiusMedium,
+                  ),
+                  border: Border.all(
+                    color: isSelected ? category.color : DesignSystem.divider,
+                    width: isSelected ? 2 : 1,
+                  ),
+                  color: isSelected
+                      ? category.color.withOpacity(0.1)
+                      : DesignSystem.surface,
+                ),
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Text(category.icon, style: const TextStyle(fontSize: 24)),
+                    const SizedBox(height: DesignSystem.spacing4),
+                    Text(
+                      category.name,
+                      style: DesignSystem.body2.copyWith(
+                        color: isSelected
+                            ? category.color
+                            : DesignSystem.textSecondary,
+                        fontWeight: isSelected
+                            ? FontWeight.w600
+                            : FontWeight.normal,
+                      ),
+                      textAlign: TextAlign.center,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ],
                 ),
               ),
-            ),
-            Icon(Icons.arrow_drop_down, color: DesignSystem.textSecondary),
-          ],
+            );
+          },
         ),
-      ),
+      ],
     );
   }
 
-  /// 카테고리 선택 모달 표시
+  /// 카테고리 선택 모달 표시 (더 이상 사용하지 않음)
   void _showCategoryPicker() {
-    showModalBottomSheet(
-      context: context,
-      builder: (context) => Container(
-        padding: const EdgeInsets.all(DesignSystem.spacing20),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              '카테고리 선택',
-              style: DesignSystem.headline3.copyWith(
-                color: DesignSystem.textPrimary,
-              ),
-            ),
-            const SizedBox(height: DesignSystem.spacing20),
-            Expanded(
-              child: ListView.builder(
-                itemCount: _categories.length,
-                itemBuilder: (context, index) {
-                  final category = _categories[index];
-                  return ListTile(
-                    leading: Text(
-                      category.icon,
-                      style: const TextStyle(fontSize: 24),
-                    ),
-                    title: Text(category.name),
-                    onTap: () {
-                      Navigator.pop(context);
-                      // 여기에 선택된 카테고리 처리 로직 추가
-                    },
-                  );
-                },
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
+    // 이 메서드는 더 이상 사용하지 않습니다
+  }
+
+  /// 선택된 카테고리 정보 반환
+  Category? _getSelectedCategory() {
+    if (_selectedCategoryId.isEmpty) return null;
+    try {
+      return _categories.firstWhere(
+        (category) => category.id == _selectedCategoryId,
+      );
+    } catch (e) {
+      return null;
+    }
   }
 
   /// 날짜 선택기
@@ -636,46 +729,49 @@ class _MainScreenState extends State<MainScreen> {
   /// 카테고리 로드 (안전한 방식)
   Future<void> _loadCategories() async {
     try {
-      // 기본 카테고리 데이터 설정
-      final defaultCategories = [
-        Category(
-          id: 'default_food',
-          groupId: '1',
-          name: '식비',
-          color: DesignSystem.expense,
-          icon: '🍽️',
-        ),
-        Category(
-          id: 'default_transport',
-          groupId: '1',
-          name: '교통비',
-          color: DesignSystem.info,
-          icon: '🚌',
-        ),
-        Category(
-          id: 'default_shopping',
-          groupId: '1',
-          name: '쇼핑',
-          color: DesignSystem.warning,
-          icon: '🛍️',
-        ),
-        Category(
-          id: 'default_culture',
-          groupId: '1',
-          name: '문화생활',
-          color: DesignSystem.primary,
-          icon: '🎬',
-        ),
-      ];
+      setState(() {
+        _isLoadingCategories = true;
+      });
+
+      // 현재 선택된 모임의 카테고리 가져오기
+      final appStateService = AppStateService();
+      final selectedGroup = appStateService.selectedGroup;
+
+      if (selectedGroup != null) {
+        // CategoryService를 통해 카테고리 로드 (기본 카테고리 포함)
+        final categories = await _categoryService.getCategoriesByGroup(
+          selectedGroup.id,
+        );
+
+        setState(() {
+          _categories = categories;
+          _isLoadingCategories = false;
+        });
+
+        print('✅ 카테고리 로딩 완료: ${categories.length}개');
+      } else {
+        // 모임이 선택되지 않은 경우 기본 카테고리 사용
+        final defaultCategories = _categoryService.getDefaultCategories(
+          'default',
+        );
+
+        setState(() {
+          _categories = defaultCategories;
+          _isLoadingCategories = false;
+        });
+
+        print('⚠️ 모임이 선택되지 않음 - 기본 카테고리 사용: ${defaultCategories.length}개');
+      }
+    } catch (e) {
+      print('❌ 카테고리 로드 오류: $e');
+      // 오류 발생 시 기본 카테고리 사용
+      final defaultCategories = _categoryService.getDefaultCategories(
+        'default',
+      );
 
       setState(() {
         _categories = defaultCategories;
-      });
-    } catch (e) {
-      print('카테고리 로드 오류: $e');
-      // 오류 발생 시 빈 리스트로 설정
-      setState(() {
-        _categories = [];
+        _isLoadingCategories = false;
       });
     }
   }

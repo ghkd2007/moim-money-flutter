@@ -1,14 +1,16 @@
 import 'package:flutter/material.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:cloud_firestore/cloud_firestore.dart' as firestore;
 import '../../../constants/design_system.dart';
-import '../../../widgets/common/app_button.dart';
 import '../../../models/models.dart';
 import '../../../services/group_service.dart';
 import '../../../services/app_state_service.dart';
+import '../../../services/category_service.dart';
 import 'create_group_screen.dart';
 import 'join_group_screen.dart';
 
-/// 모임 화면
-/// 사용자가 참여하고 있는 모든 모임을 보여주고, 모임 생성 및 관리를 제공합니다.
+/// 모임 관리 화면
+/// 모임 멤버, 카테고리, 모임 목록을 관리하는 화면입니다.
 class GroupScreen extends StatefulWidget {
   const GroupScreen({super.key});
 
@@ -17,675 +19,804 @@ class GroupScreen extends StatefulWidget {
 }
 
 class _GroupScreenState extends State<GroupScreen> {
-  // 현재 사용자 ID (추후 Firebase Auth에서 가져올 예정)
-  final String _currentUserId = 'current_user_id';
-
-  // 내가 참여하고 있는 모든 모임
-  List<Group> _myGroups = [];
-  bool _isLoading = true;
-
-  // GroupService 인스턴스
   final GroupService _groupService = GroupService();
   final AppStateService _appStateService = AppStateService();
+  final CategoryService _categoryService = CategoryService();
+
+  String? _currentUserId;
+  Group? _currentGroup;
+  List<Group> _myGroups = [];
+  List<Category> _categories = [];
+  List<UserModel> _members = [];
+  bool _isLoading = true;
 
   @override
   void initState() {
     super.initState();
-    _loadMyGroups();
+    _initializeUser();
   }
 
-  /// 내가 참여하고 있는 모임들 로드
-  Future<void> _loadMyGroups() async {
-    setState(() {
-      _isLoading = true;
-    });
+  /// 사용자 초기화
+  void _initializeUser() async {
+    final currentUser = FirebaseAuth.instance.currentUser;
+    if (currentUser != null) {
+      _currentUserId = currentUser.uid;
+      await _loadData();
+    }
+  }
+
+  /// 데이터 로드
+  Future<void> _loadData() async {
+    if (_currentUserId == null) return;
 
     try {
-      print('🔍 모임 목록 로드 시작...');
-      final groups = await _groupService.getMyGroups('current_user_id');
-      print('✅ 모임 목록 로드 완료: ${groups.length}개');
+      setState(() {
+        _isLoading = true;
+      });
+
+      // 현재 선택된 모임 정보
+      _currentGroup = _appStateService.selectedGroup;
+
+      // 내 모임 목록
+      _myGroups = _appStateService.myGroups;
+
+      // 현재 모임의 카테고리와 멤버 정보 로드
+      if (_currentGroup != null) {
+        await Future.wait([_loadCategories(), _loadMembers()]);
+      }
 
       setState(() {
-        _myGroups = groups;
         _isLoading = false;
       });
     } catch (e) {
-      print('❌ 모임 목록 로드 오류: $e');
+      print('❌ 데이터 로드 오류: $e');
       setState(() {
-        _myGroups = [];
         _isLoading = false;
       });
+    }
+  }
+
+  /// 카테고리 로드
+  Future<void> _loadCategories() async {
+    if (_currentGroup == null) return;
+
+    try {
+      final categoriesSnapshot = await firestore.FirebaseFirestore.instance
+          .collection('categories')
+          .where('groupId', isEqualTo: _currentGroup!.id)
+          .get();
+
+      final List<Category> categories = [];
+      for (final doc in categoriesSnapshot.docs) {
+        final categoryData = doc.data();
+        final category = Category.fromFirestore(categoryData, doc.id);
+        categories.add(category);
+      }
+
+      // 기본 카테고리가 없으면 생성
+      if (categories.isEmpty) {
+        await _createDefaultCategories();
+        await _loadCategories(); // 다시 로드
+      } else {
+        setState(() {
+          _categories = categories;
+        });
+      }
+    } catch (e) {
+      print('❌ 카테고리 로드 오류: $e');
+    }
+  }
+
+  /// 기본 카테고리 생성
+  Future<void> _createDefaultCategories() async {
+    if (_currentGroup == null) return;
+
+    final defaultCategories = [
+      {'name': '식비', 'icon': '🍽️', 'color': Colors.orange},
+      {'name': '교통비', 'icon': '🚌', 'color': Colors.blue},
+      {'name': '카페', 'icon': '☕', 'color': Colors.brown},
+      {'name': '취미', 'icon': '🎨', 'color': Colors.purple},
+      {'name': '주거비', 'icon': '🏠', 'color': Colors.green},
+    ];
+
+    for (final categoryData in defaultCategories) {
+      final category = Category(
+        id: '',
+        groupId: _currentGroup!.id,
+        name: categoryData['name'] as String,
+        icon: categoryData['icon'] as String,
+        color: categoryData['color'] as Color,
+      );
+
+      await _categoryService.addCategory(category);
+    }
+
+    print('✅ 기본 카테고리 생성 완료');
+  }
+
+  /// 멤버 정보 로드
+  Future<void> _loadMembers() async {
+    if (_currentGroup == null) return;
+
+    try {
+      final List<UserModel> members = [];
+
+      for (final memberId in _currentGroup!.members) {
+        final userDoc = await firestore.FirebaseFirestore.instance
+            .collection('users')
+            .doc(memberId)
+            .get();
+
+        if (userDoc.exists) {
+          final userData = userDoc.data() as Map<String, dynamic>;
+          final user = UserModel.fromMap(userData, memberId);
+          members.add(user);
+        }
+      }
+
+      setState(() {
+        _members = members;
+      });
+    } catch (e) {
+      print('❌ 멤버 로드 오류: $e');
     }
   }
 
   @override
   Widget build(BuildContext context) {
+    if (_isLoading) {
+      return const Scaffold(
+        backgroundColor: DesignSystem.background,
+        body: Center(child: CircularProgressIndicator()),
+      );
+    }
+
     return Scaffold(
       backgroundColor: DesignSystem.background,
+      appBar: AppBar(
+        backgroundColor: DesignSystem.surface,
+        elevation: 0,
+        title: Text(
+          '모임 관리',
+          style: DesignSystem.headline3.copyWith(
+            color: DesignSystem.textPrimary,
+          ),
+        ),
+        actions: [
+          if (_currentGroup != null)
+            IconButton(
+              icon: const Icon(Icons.add, color: DesignSystem.textPrimary),
+              onPressed: _showCreateGroupScreen,
+            ),
+        ],
+      ),
       body: SafeArea(
-        child: CustomScrollView(
-          slivers: [
-            // 헤더
-            SliverToBoxAdapter(
-              child: Padding(
-                padding: DesignSystem.getScreenPadding(context),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const SizedBox(height: DesignSystem.spacing24),
+        child: SingleChildScrollView(
+          padding: DesignSystem.getScreenPadding(context),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const SizedBox(height: DesignSystem.spacing24),
 
-                    // 제목
-                    Text(
-                      '내 모임',
-                      style: DesignSystem.headline1.copyWith(
-                        color: DesignSystem.textPrimary,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-
-                    const SizedBox(height: DesignSystem.spacing8),
-
-                    // 부제목
-                    Text(
-                      '참여하고 있는 모임들을 관리하세요',
-                      style: DesignSystem.body1.copyWith(
-                        color: DesignSystem.textSecondary,
-                      ),
-                    ),
-
-                    const SizedBox(height: DesignSystem.spacing32),
-                  ],
-                ),
-              ),
-            ),
-
-            // 모임 리스트
-            if (_isLoading)
-              // 로딩 중
-              SliverToBoxAdapter(
-                child: Padding(
-                  padding: DesignSystem.getScreenPadding(context),
-                  child: _buildLoadingState(),
-                ),
-              )
-            else if (_myGroups.isEmpty)
-              // 모임이 없을 때
-              SliverToBoxAdapter(
-                child: Padding(
-                  padding: DesignSystem.getScreenPadding(context),
-                  child: _buildEmptyState(),
-                ),
-              )
-            else
-              // 모임이 있을 때
-              SliverPadding(
-                padding: DesignSystem.getScreenPadding(context),
-                sliver: SliverList(
-                  delegate: SliverChildBuilderDelegate((context, index) {
-                    final group = _myGroups[index];
-                    return Padding(
-                      padding: const EdgeInsets.only(
-                        bottom: DesignSystem.spacing16,
-                      ),
-                      child: _buildGroupCard(group),
-                    );
-                  }, childCount: _myGroups.length),
-                ),
-              ),
-
-            // 하단 여백
-            const SliverToBoxAdapter(
-              child: SizedBox(height: DesignSystem.spacing32),
-            ),
-          ],
-        ),
-      ),
-
-      // 모임 생성 버튼 제거
-    );
-  }
-
-  /// 모임이 없을 때 표시할 빈 상태
-  Widget _buildEmptyState() {
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(DesignSystem.spacing24),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            // 빈 상태 아이콘
-            Container(
-              width: 120,
-              height: 120,
-              decoration: BoxDecoration(
-                color: DesignSystem.surface,
-                borderRadius: BorderRadius.circular(60),
-                boxShadow: [DesignSystem.shadowSmall[0]],
-              ),
-              child: Icon(
-                Icons.group_outlined,
-                size: 60,
-                color: DesignSystem.textSecondary,
-              ),
-            ),
-
-            const SizedBox(height: DesignSystem.spacing24),
-
-            // 메인 메시지
-            Text(
-              '아직 참여한 모임이 없어요',
-              style: DesignSystem.headline3.copyWith(
-                color: DesignSystem.textPrimary,
-                fontWeight: FontWeight.w600,
-              ),
-              textAlign: TextAlign.center,
-            ),
-
-            const SizedBox(height: DesignSystem.spacing12),
-
-            // 부가 설명
-            Text(
-              '첫 번째 모임을 만들어보거나\n친구가 만든 모임에 참여해보세요!',
-              style: DesignSystem.body1.copyWith(
-                color: DesignSystem.textSecondary,
-                height: 1.5,
-              ),
-              textAlign: TextAlign.center,
-            ),
-
-            const SizedBox(height: DesignSystem.spacing32),
-
-            // 모임 만들기 버튼 (주요 액션)
-            AppButton(
-              onPressed: () => _showCreateGroupScreen(),
-              text: '모임 만들기',
-              isFullWidth: true,
-              size: AppButtonSize.large,
-            ),
-
-            const SizedBox(height: DesignSystem.spacing16),
-
-            // 참여 코드로 입장 버튼 (보조 액션)
-            AppButton(
-              onPressed: () => _showJoinGroupScreen(),
-              text: '참여 코드로 입장',
-              type: AppButtonType.secondary,
-              isFullWidth: true,
-              size: AppButtonSize.large,
-            ),
-
-            const SizedBox(height: DesignSystem.spacing24),
-
-            // 도움말 텍스트
-            Container(
-              padding: const EdgeInsets.all(DesignSystem.spacing16),
-              decoration: BoxDecoration(
-                color: DesignSystem.surface,
-                borderRadius: BorderRadius.circular(DesignSystem.radiusMedium),
-                border: Border.all(color: DesignSystem.divider, width: 1),
-              ),
-              child: Column(
-                children: [
-                  Row(
-                    children: [
-                      Icon(
-                        Icons.lightbulb_outline,
-                        size: 20,
-                        color: DesignSystem.warning,
-                      ),
-                      const SizedBox(width: DesignSystem.spacing8),
-                      Text(
-                        '모임이란?',
-                        style: DesignSystem.body2.copyWith(
-                          fontWeight: FontWeight.w600,
-                          color: DesignSystem.textPrimary,
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: DesignSystem.spacing8),
-                  Text(
-                    '친구들과 함께 지출을 관리하고\n예산을 계획할 수 있는 공간이에요.',
-                    style: DesignSystem.caption.copyWith(
-                      color: DesignSystem.textSecondary,
-                      height: 1.4,
-                    ),
-                    textAlign: TextAlign.center,
-                  ),
-                ],
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  /// 모임 카드 위젯
-  Widget _buildGroupCard(Group group) {
-    final isOwner = group.isOwner(_currentUserId);
-
-    return Container(
-      decoration: BoxDecoration(
-        color: DesignSystem.surface,
-        borderRadius: BorderRadius.circular(DesignSystem.radiusLarge),
-        boxShadow: [DesignSystem.shadowSmall[0]],
-        border: Border.all(
-          color: isOwner
-              ? DesignSystem.primary.withOpacity(0.3)
-              : Colors.transparent,
-          width: 2,
-        ),
-      ),
-      child: Material(
-        color: Colors.transparent,
-        child: InkWell(
-          onTap: () => _navigateToGroupDetail(group),
-          borderRadius: BorderRadius.circular(DesignSystem.radiusLarge),
-          child: Padding(
-            padding: const EdgeInsets.all(DesignSystem.spacing20),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                // 모임 헤더
-                Row(
-                  children: [
-                    // 모임 아이콘
-                    Container(
-                      width: 48,
-                      height: 48,
-                      decoration: BoxDecoration(
-                        color: DesignSystem.primary.withOpacity(0.1),
-                        borderRadius: BorderRadius.circular(
-                          DesignSystem.radiusMedium,
-                        ),
-                      ),
-                      child: Icon(
-                        Icons.group,
-                        color: DesignSystem.primary,
-                        size: 24,
-                      ),
-                    ),
-
-                    const SizedBox(width: DesignSystem.spacing16),
-
-                    // 모임 정보
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Row(
-                            children: [
-                              Expanded(
-                                child: Text(
-                                  group.name,
-                                  style: DesignSystem.headline3.copyWith(
-                                    color: DesignSystem.textPrimary,
-                                    fontWeight: FontWeight.w600,
-                                  ),
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                ),
-                              ),
-
-                              // 모임장 배지
-                              if (isOwner)
-                                Container(
-                                  padding: const EdgeInsets.symmetric(
-                                    horizontal: DesignSystem.spacing8,
-                                    vertical: DesignSystem.spacing4,
-                                  ),
-                                  decoration: BoxDecoration(
-                                    color: DesignSystem.primary,
-                                    borderRadius: BorderRadius.circular(
-                                      DesignSystem.radiusSmall,
-                                    ),
-                                  ),
-                                  child: Text(
-                                    '모임장',
-                                    style: DesignSystem.caption.copyWith(
-                                      color: Colors.white,
-                                      fontWeight: FontWeight.w600,
-                                    ),
-                                  ),
-                                ),
-                            ],
-                          ),
-
-                          if (group.description != null &&
-                              group.description!.isNotEmpty)
-                            Padding(
-                              padding: const EdgeInsets.only(
-                                top: DesignSystem.spacing4,
-                              ),
-                              child: Text(
-                                group.description!,
-                                style: DesignSystem.body2.copyWith(
-                                  color: DesignSystem.textSecondary,
-                                ),
-                                maxLines: 2,
-                                overflow: TextOverflow.ellipsis,
-                              ),
-                            ),
-                        ],
-                      ),
-                    ),
-
-                    // 더보기 버튼
-                    PopupMenuButton<String>(
-                      icon: Icon(
-                        Icons.more_vert,
-                        color: DesignSystem.textSecondary,
-                      ),
-                      onSelected: (value) => _handleGroupAction(value, group),
-                      itemBuilder: (context) => [
-                        if (isOwner) ...[
-                          const PopupMenuItem(
-                            value: 'edit',
-                            child: Row(
-                              children: [
-                                Icon(Icons.edit, size: 20),
-                                SizedBox(width: 8),
-                                Text('모임 수정'),
-                              ],
-                            ),
-                          ),
-                          const PopupMenuItem(
-                            value: 'delete',
-                            child: Row(
-                              children: [
-                                Icon(Icons.delete, size: 20, color: Colors.red),
-                                SizedBox(width: 8),
-                                Text(
-                                  '모임 삭제',
-                                  style: TextStyle(color: Colors.red),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ] else ...[
-                          const PopupMenuItem(
-                            value: 'leave',
-                            child: Row(
-                              children: [
-                                Icon(
-                                  Icons.exit_to_app,
-                                  size: 20,
-                                  color: Colors.orange,
-                                ),
-                                SizedBox(width: 8),
-                                Text(
-                                  '모임 나가기',
-                                  style: TextStyle(color: Colors.orange),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ],
-                        const PopupMenuItem(
-                          value: 'invite',
-                          child: Row(
-                            children: [
-                              Icon(Icons.person_add, size: 20),
-                              SizedBox(width: 8),
-                              Text('멤버 초대'),
-                            ],
-                          ),
-                        ),
-                      ],
-                    ),
-                  ],
-                ),
-
+              // 모임 멤버 관리
+              if (_currentGroup != null) ...[
+                _buildSectionTitle('모임 멤버 관리'),
                 const SizedBox(height: DesignSystem.spacing16),
-
-                // 모임 통계
-                Row(
-                  children: [
-                    // 멤버 수
-                    _buildStatItem(
-                      icon: Icons.people,
-                      label: '멤버',
-                      value: '${group.members.length}명',
-                      color: DesignSystem.info,
-                    ),
-
-                    const SizedBox(width: DesignSystem.spacing24),
-
-                    // 카테고리 수
-                    _buildStatItem(
-                      icon: Icons.category,
-                      label: '카테고리',
-                      value: '${group.categories.length}개',
-                      color: DesignSystem.warning,
-                    ),
-
-                    const SizedBox(width: DesignSystem.spacing24),
-
-                    // 거래 내역 수
-                    _buildStatItem(
-                      icon: Icons.receipt_long,
-                      label: '거래',
-                      value: '${group.transactions.length}건',
-                      color: DesignSystem.success,
-                    ),
-                  ],
-                ),
-
-                const SizedBox(height: DesignSystem.spacing16),
-
-                // 모임 생성일
-                Text(
-                  '${group.createdAt.year}년 ${group.createdAt.month}월 ${group.createdAt.day}일 생성',
-                  style: DesignSystem.caption.copyWith(
-                    color: DesignSystem.textTertiary,
-                  ),
-                ),
+                _buildMembersSection(),
+                const SizedBox(height: DesignSystem.spacing32),
               ],
-            ),
+
+              // 카테고리 관리
+              if (_currentGroup != null) ...[
+                _buildSectionTitle('카테고리 관리'),
+                const SizedBox(height: DesignSystem.spacing16),
+                _buildCategoriesSection(),
+                const SizedBox(height: DesignSystem.spacing32),
+              ],
+
+              // 내 모임들
+              _buildSectionTitle('내 모임들'),
+              const SizedBox(height: DesignSystem.spacing16),
+              _buildMyGroupsSection(),
+
+              const SizedBox(height: DesignSystem.spacing24),
+            ],
           ),
         ),
       ),
     );
   }
 
-  /// 통계 아이템 위젯
-  Widget _buildStatItem({
-    required IconData icon,
-    required String label,
-    required String value,
-    required Color color,
-  }) {
-    return Expanded(
-      child: Row(
-        children: [
-          Icon(icon, size: 16, color: color),
-          const SizedBox(width: DesignSystem.spacing4),
-          Expanded(
+  /// 섹션 제목
+  Widget _buildSectionTitle(String title) {
+    return Text(
+      title,
+      style: DesignSystem.headline2.copyWith(
+        color: DesignSystem.textPrimary,
+        fontWeight: FontWeight.w700,
+      ),
+    );
+  }
+
+  /// 모임 멤버 섹션
+  Widget _buildMembersSection() {
+    if (_members.isEmpty) {
+      return const Center(
+        child: Padding(
+          padding: EdgeInsets.all(DesignSystem.spacing32),
+          child: Text('모임 멤버가 없습니다', style: DesignSystem.body1),
+        ),
+      );
+    }
+
+    return SizedBox(
+      height: 120,
+      child: ListView.builder(
+        scrollDirection: Axis.horizontal,
+        itemCount: _members.length,
+        itemBuilder: (context, index) {
+          final member = _members[index];
+          final isOwner = member.id == _currentGroup!.ownerId;
+
+          return Container(
+            width: 100,
+            margin: const EdgeInsets.only(right: DesignSystem.spacing16),
+            child: Card(
+              elevation: 2,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(DesignSystem.radiusLarge),
+              ),
+              child: Padding(
+                padding: const EdgeInsets.all(DesignSystem.spacing16),
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    CircleAvatar(
+                      radius: 25,
+                      backgroundColor: isOwner
+                          ? DesignSystem.primary
+                          : DesignSystem.surface,
+                      child: Text(
+                        member.name.isNotEmpty ? member.name[0] : '?',
+                        style: DesignSystem.headline3.copyWith(
+                          color: isOwner
+                              ? Colors.white
+                              : DesignSystem.textPrimary,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: DesignSystem.spacing8),
+                    Text(
+                      member.name.isNotEmpty ? member.name : '이름 없음',
+                      style: DesignSystem.body2.copyWith(
+                        fontWeight: FontWeight.w600,
+                      ),
+                      textAlign: TextAlign.center,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    if (isOwner)
+                      Container(
+                        margin: const EdgeInsets.only(top: 4),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 8,
+                          vertical: 2,
+                        ),
+                        decoration: BoxDecoration(
+                          color: DesignSystem.primary,
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: const Text(
+                          '모임장',
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontSize: 10,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ),
+                  ],
+                ),
+              ),
+            ),
+          );
+        },
+      ),
+    );
+  }
+
+  /// 카테고리 섹션
+  Widget _buildCategoriesSection() {
+    return Column(
+      children: [
+        // 카테고리 목록
+        GridView.builder(
+          shrinkWrap: true,
+          physics: const NeverScrollableScrollPhysics(),
+          gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+            crossAxisCount: 3,
+            crossAxisSpacing: DesignSystem.spacing16,
+            mainAxisSpacing: DesignSystem.spacing16,
+            childAspectRatio: 1.2,
+          ),
+          itemCount: _categories.length,
+          itemBuilder: (context, index) {
+            final category = _categories[index];
+            return _buildCategoryCard(category);
+          },
+        ),
+
+        const SizedBox(height: DesignSystem.spacing16),
+
+        // 새 카테고리 추가 버튼
+        SizedBox(
+          width: double.infinity,
+          child: ElevatedButton.icon(
+            onPressed: _showAddCategoryDialog,
+            icon: const Icon(Icons.add),
+            label: const Text('새 카테고리 추가'),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: DesignSystem.primary,
+              foregroundColor: Colors.white,
+              padding: const EdgeInsets.symmetric(
+                vertical: DesignSystem.spacing16,
+              ),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(DesignSystem.radiusLarge),
+              ),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  /// 카테고리 카드
+  Widget _buildCategoryCard(Category category) {
+    return GestureDetector(
+      onTap: () => _showEditCategoryDialog(category),
+      child: Card(
+        elevation: 2,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(DesignSystem.radiusLarge),
+        ),
+        child: Padding(
+          padding: const EdgeInsets.all(DesignSystem.spacing16),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Text(category.icon, style: const TextStyle(fontSize: 32)),
+              const SizedBox(height: DesignSystem.spacing8),
+              Text(
+                category.name,
+                style: DesignSystem.body2.copyWith(fontWeight: FontWeight.w600),
+                textAlign: TextAlign.center,
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  /// 새 카테고리 추가 다이얼로그
+  void _showAddCategoryDialog() {
+    final nameController = TextEditingController();
+    String selectedIcon = '🍽️';
+    Color selectedColor = Colors.blue;
+
+    showDialog(
+      context: context,
+      builder: (context) => StatefulBuilder(
+        builder: (context, setState) => AlertDialog(
+          title: const Text('새 카테고리 추가'),
+          content: SizedBox(
+            width: double.maxFinite,
             child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
               children: [
-                Text(
-                  value,
-                  style: DesignSystem.body2.copyWith(
-                    color: DesignSystem.textPrimary,
-                    fontWeight: FontWeight.w600,
+                // 카테고리 이름 입력
+                TextField(
+                  controller: nameController,
+                  decoration: const InputDecoration(
+                    labelText: '카테고리 이름',
+                    border: OutlineInputBorder(),
+                    hintText: '예: 식비, 교통비, 쇼핑',
                   ),
                 ),
-                Text(
-                  label,
-                  style: DesignSystem.caption.copyWith(
-                    color: DesignSystem.textSecondary,
+                const SizedBox(height: 20),
+
+                // 아이콘 선택
+                const Text(
+                  '아이콘 선택',
+                  style: TextStyle(fontWeight: FontWeight.w600, fontSize: 16),
+                ),
+                const SizedBox(height: 12),
+                Container(
+                  height: 200,
+                  decoration: BoxDecoration(
+                    border: Border.all(color: Colors.grey.shade300),
+                    borderRadius: BorderRadius.circular(8),
                   ),
+                  child: GridView.builder(
+                    padding: const EdgeInsets.all(12),
+                    gridDelegate:
+                        const SliverGridDelegateWithFixedCrossAxisCount(
+                          crossAxisCount: 8,
+                          crossAxisSpacing: 8,
+                          mainAxisSpacing: 8,
+                        ),
+                    itemCount: _categoryService.getAvailableIcons().length,
+                    itemBuilder: (context, index) {
+                      final icon = _categoryService.getAvailableIcons()[index];
+                      final isSelected = selectedIcon == icon;
+
+                      return GestureDetector(
+                        onTap: () {
+                          setState(() {
+                            selectedIcon = icon;
+                          });
+                        },
+                        child: Container(
+                          decoration: BoxDecoration(
+                            color: isSelected
+                                ? Colors.blue.withOpacity(0.2)
+                                : Colors.transparent,
+                            border: Border.all(
+                              color: isSelected
+                                  ? Colors.blue
+                                  : Colors.grey.shade300,
+                              width: isSelected ? 2 : 1,
+                            ),
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: Center(
+                            child: Text(
+                              icon,
+                              style: const TextStyle(fontSize: 20),
+                            ),
+                          ),
+                        ),
+                      );
+                    },
+                  ),
+                ),
+                const SizedBox(height: 20),
+
+                // 색상 선택
+                const Text(
+                  '색상 선택',
+                  style: TextStyle(fontWeight: FontWeight.w600, fontSize: 16),
+                ),
+                const SizedBox(height: 12),
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children:
+                      [
+                        Colors.red,
+                        Colors.pink,
+                        Colors.purple,
+                        Colors.deepPurple,
+                        Colors.indigo,
+                        Colors.blue,
+                        Colors.lightBlue,
+                        Colors.cyan,
+                        Colors.teal,
+                        Colors.green,
+                        Colors.lightGreen,
+                        Colors.lime,
+                        Colors.yellow,
+                        Colors.amber,
+                        Colors.orange,
+                        Colors.deepOrange,
+                        Colors.brown,
+                        Colors.grey,
+                        Colors.blueGrey,
+                      ].map((color) {
+                        final isSelected = selectedColor == color;
+                        return GestureDetector(
+                          onTap: () {
+                            setState(() {
+                              selectedColor = color;
+                            });
+                          },
+                          child: Container(
+                            width: 32,
+                            height: 32,
+                            decoration: BoxDecoration(
+                              color: color,
+                              shape: BoxShape.circle,
+                              border: Border.all(
+                                color: isSelected
+                                    ? Colors.black
+                                    : Colors.grey.shade400,
+                                width: isSelected ? 3 : 2,
+                              ),
+                            ),
+                          ),
+                        );
+                      }).toList(),
                 ),
               ],
             ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('취소'),
+            ),
+            ElevatedButton(
+              onPressed: () async {
+                if (nameController.text.isNotEmpty) {
+                  final category = Category(
+                    id: '',
+                    groupId: _currentGroup!.id,
+                    name: nameController.text.trim(),
+                    icon: selectedIcon,
+                    color: selectedColor,
+                  );
+
+                  await _categoryService.addCategory(category);
+                  Navigator.pop(context);
+                  await _loadCategories();
+                }
+              },
+              child: const Text('추가'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  /// 카테고리 수정 다이얼로그
+  void _showEditCategoryDialog(Category category) {
+    final nameController = TextEditingController(text: category.name);
+    final iconController = TextEditingController(text: category.icon);
+    Color selectedColor = category.color;
+
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('카테고리 수정'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            TextField(
+              controller: nameController,
+              decoration: const InputDecoration(
+                labelText: '카테고리 이름',
+                border: OutlineInputBorder(),
+              ),
+            ),
+            const SizedBox(height: 16),
+            TextField(
+              controller: iconController,
+              decoration: const InputDecoration(
+                labelText: '아이콘 (이모지)',
+                border: OutlineInputBorder(),
+              ),
+            ),
+            const SizedBox(height: 16),
+            Row(
+              children: [
+                const Text('색상: '),
+                ...Colors.primaries
+                    .take(8)
+                    .map(
+                      (color) => GestureDetector(
+                        onTap: () => selectedColor = color,
+                        child: Container(
+                          width: 24,
+                          height: 24,
+                          margin: const EdgeInsets.all(4),
+                          decoration: BoxDecoration(
+                            color: color,
+                            shape: BoxShape.circle,
+                            border: Border.all(
+                              color: selectedColor == color
+                                  ? Colors.black
+                                  : Colors.grey,
+                              width: selectedColor == color ? 2 : 1,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+              ],
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('취소'),
+          ),
+          ElevatedButton(
+            onPressed: () async {
+              if (nameController.text.isNotEmpty &&
+                  iconController.text.isNotEmpty) {
+                final updatedCategory = category.copyWith(
+                  name: nameController.text.trim(),
+                  icon: iconController.text.trim(),
+                  color: selectedColor,
+                );
+
+                await _categoryService.updateCategory(updatedCategory.id, {
+                  'name': updatedCategory.name,
+                  'icon': updatedCategory.icon,
+                  'color': updatedCategory.color.value,
+                });
+                Navigator.pop(context);
+                await _loadCategories();
+              }
+            },
+            child: const Text('수정'),
           ),
         ],
       ),
     );
   }
 
-  /// 모임 생성 화면으로 이동
+  /// 내 모임들 섹션
+  Widget _buildMyGroupsSection() {
+    if (_myGroups.isEmpty) {
+      return _buildEmptyState();
+    }
+
+    return Column(
+      children: _myGroups.map((group) => _buildGroupCard(group)).toList(),
+    );
+  }
+
+  /// 모임 카드
+  Widget _buildGroupCard(Group group) {
+    final isSelected = _currentGroup?.id == group.id;
+
+    return Card(
+      margin: const EdgeInsets.only(bottom: DesignSystem.spacing16),
+      elevation: isSelected ? 4 : 2,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(DesignSystem.radiusLarge),
+        side: BorderSide(
+          color: isSelected ? DesignSystem.primary : Colors.transparent,
+          width: isSelected ? 2 : 0,
+        ),
+      ),
+      child: ListTile(
+        contentPadding: const EdgeInsets.all(DesignSystem.spacing16),
+        leading: CircleAvatar(
+          backgroundColor: DesignSystem.primary,
+          child: Text(
+            group.name.isNotEmpty ? group.name[0] : '?',
+            style: const TextStyle(
+              color: Colors.white,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+        ),
+        title: Text(
+          group.name,
+          style: DesignSystem.headline3.copyWith(fontWeight: FontWeight.w600),
+        ),
+        subtitle: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const SizedBox(height: DesignSystem.spacing8),
+            Text(
+              '멤버 ${group.members.length}명 • 카테고리 ${group.categories.length}개',
+              style: DesignSystem.body2.copyWith(
+                color: DesignSystem.textSecondary,
+              ),
+            ),
+            if (group.ownerId == _currentUserId)
+              Container(
+                margin: const EdgeInsets.only(top: 4),
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                decoration: BoxDecoration(
+                  color: DesignSystem.primary,
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: const Text(
+                  '모임장',
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 10,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ),
+          ],
+        ),
+        trailing: isSelected
+            ? const Icon(
+                Icons.check_circle,
+                color: DesignSystem.primary,
+                size: 28,
+              )
+            : const Icon(Icons.arrow_forward_ios),
+        onTap: () {
+          _appStateService.selectGroup(group);
+          _loadData();
+        },
+      ),
+    );
+  }
+
+  /// 빈 상태 표시
+  Widget _buildEmptyState() {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(DesignSystem.spacing48),
+        child: Column(
+          children: [
+            Icon(
+              Icons.group_outlined,
+              size: 64,
+              color: DesignSystem.textSecondary,
+            ),
+            const SizedBox(height: DesignSystem.spacing16),
+            Text(
+              '아직 참여한 모임이 없어요',
+              style: DesignSystem.headline3.copyWith(
+                color: DesignSystem.textSecondary,
+              ),
+            ),
+            const SizedBox(height: DesignSystem.spacing8),
+            Text(
+              '새로운 모임을 만들거나 기존 모임에 참여해보세요!',
+              style: DesignSystem.body1.copyWith(
+                color: DesignSystem.textSecondary,
+              ),
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: DesignSystem.spacing24),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+              children: [
+                ElevatedButton.icon(
+                  onPressed: _showCreateGroupScreen,
+                  icon: const Icon(Icons.add),
+                  label: const Text('모임 만들기'),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: DesignSystem.primary,
+                    foregroundColor: Colors.white,
+                  ),
+                ),
+                OutlinedButton.icon(
+                  onPressed: _showJoinGroupScreen,
+                  icon: const Icon(Icons.group_add),
+                  label: const Text('모임 참여'),
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: DesignSystem.primary,
+                    side: const BorderSide(color: DesignSystem.primary),
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  /// 모임 생성 화면 표시
   void _showCreateGroupScreen() {
     Navigator.push(
       context,
       MaterialPageRoute(builder: (context) => const CreateGroupScreen()),
-    ).then((_) {
-      // 모임 생성 후 목록 새로고침
-      _loadMyGroups();
-    });
+    ).then((_) => _loadData());
   }
 
-  /// 모임 상세 화면으로 이동
-  void _navigateToGroupDetail(Group group) {
-    // 선택된 모임을 AppStateService에 설정
-    _appStateService.selectGroup(group);
-
-    // 성공 메시지 표시
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text('${group.name} 모임이 선택되었습니다. 홈 탭에서 확인하세요.'),
-        backgroundColor: DesignSystem.success,
-        duration: const Duration(seconds: 3),
-      ),
-    );
-  }
-
-  /// 모임 액션 처리
-  void _handleGroupAction(String action, Group group) {
-    switch (action) {
-      case 'edit':
-        _editGroup(group);
-        break;
-      case 'delete':
-        _deleteGroup(group);
-        break;
-      case 'leave':
-        _leaveGroup(group);
-        break;
-      case 'invite':
-        _inviteMembers(group);
-        break;
-    }
-  }
-
-  /// 모임 수정
-  void _editGroup(Group group) {
-    // TODO: 모임 수정 화면 구현
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text('${group.name} 수정 기능은 준비 중입니다.'),
-        duration: const Duration(seconds: 2),
-      ),
-    );
-  }
-
-  /// 모임 삭제
-  void _deleteGroup(Group group) {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('모임 삭제'),
-        content: Text('정말로 "${group.name}" 모임을 삭제하시겠습니까?\n이 작업은 되돌릴 수 없습니다.'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('취소'),
-          ),
-          TextButton(
-            onPressed: () {
-              Navigator.pop(context);
-              // TODO: Firebase에서 모임 삭제
-              setState(() {
-                _myGroups.removeWhere((g) => g.id == group.id);
-              });
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(
-                  content: Text('${group.name} 모임이 삭제되었습니다.'),
-                  duration: const Duration(seconds: 2),
-                ),
-              );
-            },
-            style: TextButton.styleFrom(foregroundColor: Colors.red),
-            child: const Text('삭제'),
-          ),
-        ],
-      ),
-    );
-  }
-
-  /// 모임 나가기
-  void _leaveGroup(Group group) {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('모임 나가기'),
-        content: Text('정말로 "${group.name}" 모임에서 나가시겠습니까?'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('취소'),
-          ),
-          TextButton(
-            onPressed: () {
-              Navigator.pop(context);
-              // TODO: Firebase에서 모임 멤버 제거
-              setState(() {
-                _myGroups.removeWhere((g) => g.id == group.id);
-              });
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(
-                  content: Text('${group.name} 모임에서 나갔습니다.'),
-                  duration: const Duration(seconds: 2),
-                ),
-              );
-            },
-            style: TextButton.styleFrom(foregroundColor: Colors.orange),
-            child: const Text('나가기'),
-          ),
-        ],
-      ),
-    );
-  }
-
-  /// 멤버 초대
-  void _inviteMembers(Group group) {
-    // TODO: 멤버 초대 기능 구현
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text('${group.name} 멤버 초대 기능은 준비 중입니다.'),
-        duration: const Duration(seconds: 2),
-      ),
-    );
-  }
-
-  /// 참여 코드로 입장 화면으로 이동
+  /// 모임 참여 화면 표시
   void _showJoinGroupScreen() {
     Navigator.push(
       context,
       MaterialPageRoute(builder: (context) => const JoinGroupScreen()),
-    ).then((_) {
-      // 참여 코드로 입장 후 목록 새로고침
-      _loadMyGroups();
-    });
-  }
-
-  /// 로딩 상태 위젯
-  Widget _buildLoadingState() {
-    return Column(
-      mainAxisAlignment: MainAxisAlignment.center,
-      children: [
-        const SizedBox(height: 80),
-        CircularProgressIndicator(
-          valueColor: AlwaysStoppedAnimation<Color>(DesignSystem.primary),
-        ),
-        const SizedBox(height: DesignSystem.spacing24),
-        Text(
-          '모임 목록을 불러오는 중...',
-          style: DesignSystem.body1.copyWith(color: DesignSystem.textSecondary),
-        ),
-      ],
-    );
+    ).then((_) => _loadData());
   }
 }

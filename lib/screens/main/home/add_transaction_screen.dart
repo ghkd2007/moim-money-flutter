@@ -1,8 +1,12 @@
 import 'package:flutter/material.dart';
+import 'package:firebase_auth/firebase_auth.dart' as auth;
+import 'package:cloud_firestore/cloud_firestore.dart' as firestore;
 import '../../../constants/design_system.dart';
 import '../../../widgets/common/app_button.dart';
 import '../../../models/models.dart';
 import '../../../services/transaction_service.dart';
+import '../../../services/app_state_service.dart';
+import '../../../services/category_service.dart';
 
 /// 지출/수입 추가 화면
 /// 새로운 거래 내역을 추가하는 화면입니다.
@@ -25,51 +29,96 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
   String? _selectedCategoryId;
   DateTime _selectedDate = DateTime.now();
 
-  // 임시 카테고리 데이터 (추후 Firebase에서 가져올 예정)
-  final Map<String, Category> _categories = {
-    'cat1': const Category(
-      id: 'cat1',
-      groupId: '1',
-      name: '스타벅스',
-      color: Colors.brown,
-      icon: '☕',
-    ),
-    'cat2': const Category(
-      id: 'cat2',
-      groupId: '1',
-      name: '맛집',
-      color: Colors.orange,
-      icon: '🍽️',
-    ),
-    'cat3': const Category(
-      id: 'cat3',
-      groupId: '1',
-      name: '회사',
-      color: Colors.blue,
-      icon: '🏢',
-    ),
-    'cat4': const Category(
-      id: 'cat4',
-      groupId: '1',
-      name: 'CGV',
-      color: Colors.purple,
-      icon: '🎬',
-    ),
-    'cat5': const Category(
-      id: 'cat5',
-      groupId: '1',
-      name: '교통비',
-      color: Colors.green,
-      icon: '🚌',
-    ),
-    'cat6': const Category(
-      id: 'cat6',
-      groupId: '1',
-      name: '쇼핑',
-      color: Colors.pink,
-      icon: '🛍️',
-    ),
-  };
+  // 서비스 인스턴스
+  final TransactionService _transactionService = TransactionService();
+  final AppStateService _appStateService = AppStateService();
+
+  // 현재 사용자와 모임 정보
+  String? _currentUserId;
+  String? _currentGroupId;
+
+  // 실제 카테고리 데이터 (Firebase에서 가져옴)
+  List<Category> _categories = [];
+  bool _isLoadingCategories = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _initializeUserAndGroup();
+  }
+
+  /// 사용자와 모임 정보 초기화
+  void _initializeUserAndGroup() async {
+    // 현재 사용자 ID 가져오기
+    final currentUser = auth.FirebaseAuth.instance.currentUser;
+    if (currentUser != null) {
+      _currentUserId = currentUser.uid;
+      print('✅ AddTransactionScreen에서 사용자 ID 설정: ${currentUser.uid}');
+    }
+
+    // 현재 선택된 모임 ID 가져오기
+    final currentGroup = _appStateService.selectedGroup;
+    if (currentGroup != null) {
+      _currentGroupId = currentGroup.id;
+      print('✅ AddTransactionScreen에서 모임 ID 설정: ${currentGroup.id}');
+
+      // 모임의 카테고리 데이터 로드
+      await _loadCategories();
+    }
+  }
+
+  /// 모임의 카테고리 데이터 로드
+  Future<void> _loadCategories() async {
+    if (_currentGroupId == null) return;
+
+    try {
+      setState(() {
+        _isLoadingCategories = true;
+      });
+
+      print('🔄 모임 카테고리 로딩 시작: $_currentGroupId');
+
+      // Firebase에서 모임의 카테고리 가져오기
+      final categoriesSnapshot = await firestore.FirebaseFirestore.instance
+          .collection('categories')
+          .where('groupId', isEqualTo: _currentGroupId)
+          .get();
+
+      final List<Category> categories = [];
+      for (final doc in categoriesSnapshot.docs) {
+        final categoryData = doc.data();
+        final category = Category.fromFirestore(categoryData, doc.id);
+        categories.add(category);
+        print('✅ 카테고리 로드: ${category.name}');
+      }
+
+      // 기본 카테고리가 없으면 기본값 생성
+      if (categories.isEmpty) {
+        print('⚠️ 모임에 카테고리가 없음 - 기본 카테고리 생성');
+        categories.addAll(_getDefaultCategories());
+      }
+
+      setState(() {
+        _categories = categories;
+        _isLoadingCategories = false;
+      });
+
+      print('🎉 카테고리 로딩 완료: ${categories.length}개');
+    } catch (e) {
+      print('❌ 카테고리 로딩 오류: $e');
+      setState(() {
+        _isLoadingCategories = false;
+        _categories = _getDefaultCategories();
+      });
+    }
+  }
+
+  /// 기본 카테고리 목록 반환 (CategoryService 사용)
+  List<Category> _getDefaultCategories() {
+    // CategoryService의 기본 카테고리 사용
+    final categoryService = CategoryService();
+    return categoryService.getDefaultCategories(_currentGroupId ?? 'default');
+  }
 
   @override
   void dispose() {
@@ -297,60 +346,84 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
           ),
         ),
         const SizedBox(height: DesignSystem.spacing16),
-        GridView.builder(
-          shrinkWrap: true,
-          physics: const NeverScrollableScrollPhysics(),
-          gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-            crossAxisCount: 3,
-            crossAxisSpacing: DesignSystem.spacing16,
-            mainAxisSpacing: DesignSystem.spacing16,
-            childAspectRatio: 1.2,
-          ),
-          itemCount: _categories.length,
-          itemBuilder: (context, index) {
-            final category = _categories.values.elementAt(index);
-            final isSelected = _selectedCategoryId == category.id;
 
-            return GestureDetector(
-              onTap: () {
-                setState(() {
-                  _selectedCategoryId = category.id;
-                });
-              },
-              child: Container(
-                decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(DesignSystem.radiusLarge),
-                  border: Border.all(
-                    color: isSelected ? category.color : DesignSystem.divider,
-                    width: isSelected ? 2 : 1,
-                  ),
-                  color: isSelected
-                      ? category.color.withOpacity(0.1)
-                      : DesignSystem.surface,
-                ),
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Text(category.icon, style: const TextStyle(fontSize: 32)),
-                    const SizedBox(height: DesignSystem.spacing8),
-                    Text(
-                      category.name,
-                      style: DesignSystem.body2.copyWith(
-                        color: isSelected
-                            ? category.color
-                            : DesignSystem.textSecondary,
-                        fontWeight: isSelected
-                            ? FontWeight.w600
-                            : FontWeight.normal,
-                      ),
-                      textAlign: TextAlign.center,
-                    ),
-                  ],
+        // 카테고리 로딩 상태 표시
+        if (_isLoadingCategories)
+          const Center(
+            child: Padding(
+              padding: EdgeInsets.all(DesignSystem.spacing32),
+              child: CircularProgressIndicator(),
+            ),
+          )
+        else if (_categories.isEmpty)
+          Center(
+            child: Padding(
+              padding: const EdgeInsets.all(DesignSystem.spacing32),
+              child: Text(
+                '카테고리가 없습니다',
+                style: DesignSystem.body1.copyWith(
+                  color: DesignSystem.textSecondary,
                 ),
               ),
-            );
-          },
-        ),
+            ),
+          )
+        else
+          GridView.builder(
+            shrinkWrap: true,
+            physics: const NeverScrollableScrollPhysics(),
+            gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+              crossAxisCount: 3,
+              crossAxisSpacing: DesignSystem.spacing16,
+              mainAxisSpacing: DesignSystem.spacing16,
+              childAspectRatio: 1.2,
+            ),
+            itemCount: _categories.length,
+            itemBuilder: (context, index) {
+              final category = _categories[index];
+              final isSelected = _selectedCategoryId == category.id;
+
+              return GestureDetector(
+                onTap: () {
+                  setState(() {
+                    _selectedCategoryId = category.id;
+                  });
+                },
+                child: Container(
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(
+                      DesignSystem.radiusLarge,
+                    ),
+                    border: Border.all(
+                      color: isSelected ? category.color : DesignSystem.divider,
+                      width: isSelected ? 2 : 1,
+                    ),
+                    color: isSelected
+                        ? category.color.withOpacity(0.1)
+                        : DesignSystem.surface,
+                  ),
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Text(category.icon, style: const TextStyle(fontSize: 32)),
+                      const SizedBox(height: DesignSystem.spacing8),
+                      Text(
+                        category.name,
+                        style: DesignSystem.body2.copyWith(
+                          color: isSelected
+                              ? category.color
+                              : DesignSystem.textSecondary,
+                          fontWeight: isSelected
+                              ? FontWeight.w600
+                              : FontWeight.normal,
+                        ),
+                        textAlign: TextAlign.center,
+                      ),
+                    ],
+                  ),
+                ),
+              );
+            },
+          ),
       ],
     );
   }
@@ -492,6 +565,17 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
 
   /// 거래 내역 저장
   Future<void> _saveTransaction() async {
+    // 사용자 ID와 모임 ID 확인
+    if (_currentUserId == null) {
+      _showErrorSnackBar('사용자 정보를 찾을 수 없습니다. 다시 로그인해주세요.');
+      return;
+    }
+
+    if (_currentGroupId == null) {
+      _showErrorSnackBar('모임 정보를 찾을 수 없습니다. 모임을 선택해주세요.');
+      return;
+    }
+
     final amount = int.tryParse(_amountController.text);
     if (amount == null || amount <= 0) {
       _showErrorSnackBar('올바른 금액을 입력해주세요.');
@@ -509,8 +593,8 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
     // Firebase에 거래 내역 저장
     final transaction = Transaction(
       id: '', // Firestore에서 자동 생성
-      groupId: '1', // 현재 그룹 ID (추후 동적으로 변경)
-      userId: 'user1', // 현재 사용자 ID (추후 동적으로 변경)
+      groupId: _currentGroupId!, // 현재 그룹 ID
+      userId: _currentUserId!, // 현재 사용자 ID
       type: _transactionType,
       amount: actualAmount,
       categoryId: _selectedCategoryId!,
@@ -521,8 +605,7 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
     );
 
     try {
-      final transactionService = TransactionService();
-      final transactionId = await transactionService.addTransaction(
+      final transactionId = await _transactionService.addTransaction(
         transaction,
       );
 
@@ -537,6 +620,10 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
           ),
         );
 
+        // AppStateService에 새 거래 내역 추가
+        final updatedTransaction = transaction.copyWith(id: transactionId);
+        _appStateService.addTransaction(updatedTransaction);
+
         // 이전 화면으로 돌아가기
         Navigator.pop(context);
       } else {
@@ -550,7 +637,11 @@ class _AddTransactionScreenState extends State<AddTransactionScreen> {
   /// 에러 메시지 표시
   void _showErrorSnackBar(String message) {
     ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(message), backgroundColor: DesignSystem.error),
+      SnackBar(
+        content: Text(message),
+        backgroundColor: DesignSystem.error,
+        behavior: SnackBarBehavior.floating,
+      ),
     );
   }
 }
