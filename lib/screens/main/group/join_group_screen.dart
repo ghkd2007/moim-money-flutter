@@ -41,15 +41,13 @@ class _JoinGroupScreenState extends State<JoinGroupScreen>
       ),
     );
 
-    _slideAnimation = Tween<Offset>(
-      begin: const Offset(0, 0.3),
-      end: Offset.zero,
-    ).animate(
-      CurvedAnimation(
-        parent: _animationController,
-        curve: DesignSystem.curveEaseOut,
-      ),
-    );
+    _slideAnimation =
+        Tween<Offset>(begin: const Offset(0, 0.3), end: Offset.zero).animate(
+          CurvedAnimation(
+            parent: _animationController,
+            curve: DesignSystem.curveEaseOut,
+          ),
+        );
 
     _animationController.forward();
   }
@@ -136,11 +134,7 @@ class _JoinGroupScreenState extends State<JoinGroupScreen>
             color: DesignSystem.info.withOpacity(0.1),
             borderRadius: BorderRadius.circular(DesignSystem.radiusLarge),
           ),
-          child: Icon(
-            Icons.group_add,
-            size: 40,
-            color: DesignSystem.info,
-          ),
+          child: Icon(Icons.group_add, size: 40, color: DesignSystem.info),
         ),
 
         const SizedBox(height: DesignSystem.spacing24),
@@ -224,21 +218,14 @@ class _JoinGroupScreenState extends State<JoinGroupScreen>
       decoration: BoxDecoration(
         color: DesignSystem.surface,
         borderRadius: BorderRadius.circular(DesignSystem.radiusMedium),
-        border: Border.all(
-          color: DesignSystem.divider,
-          width: 1,
-        ),
+        border: Border.all(color: DesignSystem.divider, width: 1),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
             children: [
-              Icon(
-                Icons.help_outline,
-                color: DesignSystem.info,
-                size: 20,
-              ),
+              Icon(Icons.help_outline, color: DesignSystem.info, size: 20),
               const SizedBox(width: DesignSystem.spacing8),
               Text(
                 '참여 코드가 없나요?',

@@ -10,6 +10,3 @@ export 'user_model.dart';
 export 'group_model.dart';
 export 'category_model.dart';
 export 'transaction_model.dart';
-
-
-

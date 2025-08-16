@@ -39,15 +39,13 @@ class _OnboardingScreenState extends State<OnboardingScreen>
       ),
     );
 
-    _slideAnimation = Tween<Offset>(
-      begin: const Offset(0, 0.3),
-      end: Offset.zero,
-    ).animate(
-      CurvedAnimation(
-        parent: _animationController,
-        curve: DesignSystem.curveEaseOut,
-      ),
-    );
+    _slideAnimation =
+        Tween<Offset>(begin: const Offset(0, 0.3), end: Offset.zero).animate(
+          CurvedAnimation(
+            parent: _animationController,
+            curve: DesignSystem.curveEaseOut,
+          ),
+        );
 
     _animationController.forward();
   }
@@ -157,21 +155,14 @@ class _OnboardingScreenState extends State<OnboardingScreen>
         color: DesignSystem.surface,
         borderRadius: BorderRadius.circular(DesignSystem.radiusLarge),
         boxShadow: [DesignSystem.shadowSmall[0]],
-        border: Border.all(
-          color: DesignSystem.divider,
-          width: 1,
-        ),
+        border: Border.all(color: DesignSystem.divider, width: 1),
       ),
       child: Column(
         children: [
           // 모임이란? 제목
           Row(
             children: [
-              Icon(
-                Icons.lightbulb,
-                color: DesignSystem.warning,
-                size: 24,
-              ),
+              Icon(Icons.lightbulb, color: DesignSystem.warning, size: 24),
               const SizedBox(width: DesignSystem.spacing12),
               Text(
                 '모임이란?',
@@ -237,9 +228,7 @@ class _OnboardingScreenState extends State<OnboardingScreen>
       onPressed: () => _skipOnboarding(),
       child: Text(
         '나중에 하기',
-        style: DesignSystem.body1.copyWith(
-          color: DesignSystem.textSecondary,
-        ),
+        style: DesignSystem.body1.copyWith(color: DesignSystem.textSecondary),
       ),
     );
   }
@@ -248,9 +237,7 @@ class _OnboardingScreenState extends State<OnboardingScreen>
   void _createNewGroup() {
     Navigator.push(
       context,
-      MaterialPageRoute(
-        builder: (context) => const CreateGroupScreen(),
-      ),
+      MaterialPageRoute(builder: (context) => const CreateGroupScreen()),
     ).then((_) {
       // 모임 생성 완료 후 메인 화면으로 이동
       _navigateToMainScreen();
@@ -261,9 +248,7 @@ class _OnboardingScreenState extends State<OnboardingScreen>
   void _joinExistingGroup() {
     Navigator.push(
       context,
-      MaterialPageRoute(
-        builder: (context) => const JoinGroupScreen(),
-      ),
+      MaterialPageRoute(builder: (context) => const JoinGroupScreen()),
     ).then((_) {
       // 모임 참여 완료 후 메인 화면으로 이동
       _navigateToMainScreen();
@@ -278,9 +263,7 @@ class _OnboardingScreenState extends State<OnboardingScreen>
   /// 메인 화면으로 이동
   void _navigateToMainScreen() {
     Navigator.of(context).pushAndRemoveUntil(
-      MaterialPageRoute(
-        builder: (context) => const MainScreen(),
-      ),
+      MaterialPageRoute(builder: (context) => const MainScreen()),
       (route) => false,
     );
   }

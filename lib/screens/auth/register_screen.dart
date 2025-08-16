@@ -5,6 +5,7 @@ import '../../constants/design_system.dart';
 import '../../widgets/common/app_button.dart';
 import '../../widgets/common/app_text_field.dart';
 import '../../models/models.dart' as models;
+import '../../screens/onboarding/onboarding_screen.dart';
 
 /// 회원가입 화면
 /// 사용자가 새로운 계정을 생성할 수 있습니다.
@@ -102,9 +103,31 @@ class _RegisterScreenState extends State<RegisterScreen>
             .doc(user.uid)
             .set(userModel.toMap());
 
-        // 회원가입 성공 시 메인 화면으로 이동
+        // 회원가입 성공 시 온보딩 화면으로 이동
         if (mounted) {
-          Navigator.pushReplacementNamed(context, '/main');
+          // 성공 메시지 표시
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('${_nameController.text}님, 회원가입이 완료되었습니다!'),
+              backgroundColor: DesignSystem.success,
+              behavior: SnackBarBehavior.floating,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(DesignSystem.radiusMedium),
+              ),
+            ),
+          );
+          
+          // 잠시 후 온보딩 화면으로 이동
+          await Future.delayed(const Duration(seconds: 1));
+          
+          if (mounted) {
+            Navigator.pushReplacement(
+              context,
+              MaterialPageRoute(
+                builder: (context) => const OnboardingScreen(),
+              ),
+            );
+          }
         }
       }
     } on auth.FirebaseAuthException catch (e) {

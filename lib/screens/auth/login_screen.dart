@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart' as auth;
+import 'package:cloud_firestore/cloud_firestore.dart';
 import '../../constants/design_system.dart';
 import '../../widgets/common/app_button.dart';
 import '../../widgets/common/app_text_field.dart';
 import '../main/main_screen.dart';
+import '../onboarding/onboarding_screen.dart';
 import 'register_screen.dart';
 
 /// 로그인 화면
@@ -72,17 +74,54 @@ class _LoginScreenState extends State<LoginScreen>
 
     try {
       // Firebase Auth를 통한 로그인
-      await auth.FirebaseAuth.instance.signInWithEmailAndPassword(
+      final userCredential = await auth.FirebaseAuth.instance.signInWithEmailAndPassword(
         email: _emailController.text.trim(),
         password: _passwordController.text,
       );
 
-      // 로그인 성공 시 메인 화면으로 이동
-      if (mounted) {
-        Navigator.pushReplacement(
-          context,
-          MaterialPageRoute(builder: (context) => const MainScreen()),
-        );
+      final user = userCredential.user;
+      if (user != null) {
+        // 사용자의 모임 참여 상태 확인
+        final userDoc = await FirebaseFirestore.instance
+            .collection('users')
+            .doc(user.uid)
+            .get();
+
+        if (userDoc.exists) {
+          final userData = userDoc.data() as Map<String, dynamic>;
+          final groupIds = List<String>.from(userData['groupIds'] ?? []);
+          
+          // 로그인 성공 시 모임 참여 상태에 따라 화면 이동
+          if (mounted) {
+            if (groupIds.isEmpty) {
+              // 모임에 참여하지 않은 경우 온보딩 화면으로 이동
+              Navigator.pushReplacement(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => const OnboardingScreen(),
+                ),
+              );
+            } else {
+              // 모임에 참여한 경우 메인 화면으로 이동
+              Navigator.pushReplacement(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => const MainScreen(),
+                ),
+              );
+            }
+          }
+        } else {
+          // 사용자 문서가 없는 경우 온보딩 화면으로 이동
+          if (mounted) {
+            Navigator.pushReplacement(
+              context,
+              MaterialPageRoute(
+                builder: (context) => const OnboardingScreen(),
+              ),
+            );
+          }
+        }
       }
     } on auth.FirebaseAuthException catch (e) {
       // 에러 메시지 표시
