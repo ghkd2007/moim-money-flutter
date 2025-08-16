@@ -77,11 +77,11 @@ class _RegisterScreenState extends State<RegisterScreen>
 
     try {
       // Firebase Auth로 계정 생성
-            final userCredential = await auth.FirebaseAuth.instance
+      final userCredential = await auth.FirebaseAuth.instance
           .createUserWithEmailAndPassword(
-        email: _emailController.text.trim(),
-        password: _passwordController.text,
-      );
+            email: _emailController.text.trim(),
+            password: _passwordController.text,
+          );
 
       final user = userCredential.user;
       if (user != null) {
@@ -116,16 +116,14 @@ class _RegisterScreenState extends State<RegisterScreen>
               ),
             ),
           );
-          
+
           // 잠시 후 온보딩 화면으로 이동
           await Future.delayed(const Duration(seconds: 1));
-          
+
           if (mounted) {
             Navigator.pushReplacement(
               context,
-              MaterialPageRoute(
-                builder: (context) => const OnboardingScreen(),
-              ),
+              MaterialPageRoute(builder: (context) => const OnboardingScreen()),
             );
           }
         }

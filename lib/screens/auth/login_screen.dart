@@ -74,10 +74,11 @@ class _LoginScreenState extends State<LoginScreen>
 
     try {
       // Firebase Auth를 통한 로그인
-      final userCredential = await auth.FirebaseAuth.instance.signInWithEmailAndPassword(
-        email: _emailController.text.trim(),
-        password: _passwordController.text,
-      );
+      final userCredential = await auth.FirebaseAuth.instance
+          .signInWithEmailAndPassword(
+            email: _emailController.text.trim(),
+            password: _passwordController.text,
+          );
 
       final user = userCredential.user;
       if (user != null) {
@@ -90,7 +91,7 @@ class _LoginScreenState extends State<LoginScreen>
         if (userDoc.exists) {
           final userData = userDoc.data() as Map<String, dynamic>;
           final groupIds = List<String>.from(userData['groupIds'] ?? []);
-          
+
           // 로그인 성공 시 모임 참여 상태에 따라 화면 이동
           if (mounted) {
             if (groupIds.isEmpty) {
@@ -105,9 +106,7 @@ class _LoginScreenState extends State<LoginScreen>
               // 모임에 참여한 경우 메인 화면으로 이동
               Navigator.pushReplacement(
                 context,
-                MaterialPageRoute(
-                  builder: (context) => const MainScreen(),
-                ),
+                MaterialPageRoute(builder: (context) => const MainScreen()),
               );
             }
           }
@@ -116,9 +115,7 @@ class _LoginScreenState extends State<LoginScreen>
           if (mounted) {
             Navigator.pushReplacement(
               context,
-              MaterialPageRoute(
-                builder: (context) => const OnboardingScreen(),
-              ),
+              MaterialPageRoute(builder: (context) => const OnboardingScreen()),
             );
           }
         }

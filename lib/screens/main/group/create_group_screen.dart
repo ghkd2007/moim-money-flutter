@@ -1,7 +1,10 @@
 import 'package:flutter/material.dart';
+import 'package:firebase_auth/firebase_auth.dart' as auth;
+import 'package:cloud_firestore/cloud_firestore.dart';
 import '../../../constants/design_system.dart';
 import '../../../widgets/common/app_button.dart';
 import '../../../widgets/common/app_text_field.dart';
+import '../../../models/models.dart' as models;
 
 /// 모임 생성 화면
 /// 새로운 모임을 만들고 초기 설정을 할 수 있는 화면입니다.
@@ -121,7 +124,7 @@ class _CreateGroupScreenState extends State<CreateGroupScreen>
 
                     const SizedBox(height: DesignSystem.spacing24),
 
-                    // 멤버 초대
+                    // 초대 이메일 섹션 (선택사항)
                     _buildInviteSection(),
 
                     const SizedBox(height: DesignSystem.spacing32),
@@ -129,7 +132,7 @@ class _CreateGroupScreenState extends State<CreateGroupScreen>
                     // 모임 생성 버튼
                     _buildCreateButton(),
 
-                    const SizedBox(height: DesignSystem.spacing24),
+                    const SizedBox(height: DesignSystem.spacing32),
                   ],
                 ),
               ),
@@ -274,33 +277,65 @@ class _CreateGroupScreenState extends State<CreateGroupScreen>
     );
   }
 
-  /// 멤버 초대 섹션
+  /// 초대 이메일 섹션
   Widget _buildInviteSection() {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
+        // 섹션 제목
+        Row(
+          children: [
+            Text(
+              '멤버 초대',
+              style: DesignSystem.headline3.copyWith(
+                color: DesignSystem.textPrimary,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+            const SizedBox(width: DesignSystem.spacing8),
+            Container(
+              padding: const EdgeInsets.symmetric(
+                horizontal: DesignSystem.spacing8,
+                vertical: DesignSystem.spacing4,
+              ),
+              decoration: BoxDecoration(
+                color: DesignSystem.info.withOpacity(0.1),
+                borderRadius: BorderRadius.circular(DesignSystem.radiusSmall),
+                border: Border.all(
+                  color: DesignSystem.info.withOpacity(0.3),
+                ),
+              ),
+              child: Text(
+                '선택사항',
+                style: DesignSystem.caption.copyWith(
+                  color: DesignSystem.info,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ),
+          ],
+        ),
+        
+        const SizedBox(height: DesignSystem.spacing8),
+        
         Text(
-          '멤버 초대 (선택사항)',
-          style: DesignSystem.headline3.copyWith(
-            color: DesignSystem.textPrimary,
-            fontWeight: FontWeight.w600,
+          '친구들을 초대하여 함께 모임을 관리할 수 있습니다.\n초대하지 않아도 모임 생성이 가능합니다.',
+          style: DesignSystem.body2.copyWith(
+            color: DesignSystem.textSecondary,
+            height: 1.4,
           ),
         ),
-        const SizedBox(height: DesignSystem.spacing8),
-        Text(
-          '모임에 함께할 멤버들의 이메일을 입력하세요.',
-          style: DesignSystem.body2.copyWith(color: DesignSystem.textSecondary),
-        ),
+
         const SizedBox(height: DesignSystem.spacing16),
 
-        // 이메일 입력 필드
+        // 이메일 입력 및 추가
         Row(
           children: [
             Expanded(
               child: AppEmailField(
                 controller: _emailController,
                 isRequired: false,
-                hint: '이메일 주소',
+                hint: '초대할 이메일 주소',
               ),
             ),
             const SizedBox(width: DesignSystem.spacing12),
@@ -428,8 +463,44 @@ class _CreateGroupScreenState extends State<CreateGroupScreen>
     setState(() => _isLoading = true);
 
     try {
-      // 모임 생성 로직 (추후 Firebase 연동)
-      await Future.delayed(const Duration(seconds: 2)); // 임시 딜레이
+      // 현재 로그인된 사용자 가져오기
+      final currentUser = auth.FirebaseAuth.instance.currentUser;
+      if (currentUser == null) {
+        throw Exception('로그인이 필요합니다.');
+      }
+
+      // 모임 생성
+      final groupRef = FirebaseFirestore.instance.collection('groups').doc();
+      final group = models.Group(
+        id: groupRef.id,
+        name: _nameController.text.trim(),
+        description: _descriptionController.text.trim().isEmpty 
+            ? null 
+            : _descriptionController.text.trim(),
+        ownerId: currentUser.uid,
+        members: [currentUser.uid], // 생성자가 첫 번째 멤버
+        categories: [], // 기본 카테고리는 나중에 추가
+        transactions: [],
+        createdAt: DateTime.now(),
+        updatedAt: DateTime.now(),
+      );
+
+      // Firestore에 모임 저장
+      await groupRef.set(group.toFirestore());
+
+      // 사용자 문서에 모임 ID 추가
+      await FirebaseFirestore.instance
+          .collection('users')
+          .doc(currentUser.uid)
+          .update({
+        'groupIds': FieldValue.arrayUnion([groupRef.id]),
+      });
+
+      // 초대 이메일이 있는 경우 초대 처리 (향후 구현)
+      if (_invitedEmails.isNotEmpty) {
+        // TODO: 초대 이메일 발송 로직 구현
+        print('초대할 이메일: $_invitedEmails');
+      }
 
       if (mounted) {
         // 성공 메시지 표시
@@ -440,14 +511,14 @@ class _CreateGroupScreenState extends State<CreateGroupScreen>
           ),
         );
 
-        // 메인 화면으로 이동
+        // 이전 화면으로 이동
         Navigator.pop(context);
       }
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: const Text('모임 생성 중 오류가 발생했습니다.'),
+            content: Text('모임 생성 중 오류가 발생했습니다: $e'),
             backgroundColor: DesignSystem.error,
           ),
         );

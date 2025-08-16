@@ -269,12 +269,36 @@ class _HomeScreenState extends State<HomeScreen> {
               ),
               const SizedBox(width: DesignSystem.spacing16),
               Expanded(
-                child: Text(
-                  _currentGroup.name,
-                  style: DesignSystem.headline1.copyWith(
-                    color: DesignSystem.textPrimary,
-                  ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      _currentGroup.name,
+                      style: DesignSystem.headline1.copyWith(
+                        color: DesignSystem.textPrimary,
+                      ),
+                    ),
+                    if (_currentGroup.description != null && _currentGroup.description!.isNotEmpty)
+                      Padding(
+                        padding: const EdgeInsets.only(top: DesignSystem.spacing4),
+                        child: Text(
+                          _currentGroup.description!,
+                          style: DesignSystem.body2.copyWith(
+                            color: DesignSystem.textSecondary,
+                          ),
+                        ),
+                      ),
+                  ],
                 ),
+              ),
+              // 모임 변경 버튼
+              IconButton(
+                onPressed: _showGroupSelector,
+                icon: Icon(
+                  Icons.swap_horiz,
+                  color: DesignSystem.textSecondary,
+                ),
+                tooltip: '모임 변경',
               ),
             ],
           ),
@@ -1549,6 +1573,119 @@ class _HomeScreenState extends State<HomeScreen> {
     Navigator.push(
       context,
       MaterialPageRoute(builder: (context) => const CreateGroupScreen()),
+    );
+  }
+
+  /// 모임 변경 화면으로 이동
+  void _showGroupSelector() {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      enableDrag: true,
+      builder: (context) => Container(
+        height: MediaQuery.of(context).size.height * 0.6,
+        decoration: const BoxDecoration(
+          color: DesignSystem.surface,
+          borderRadius: BorderRadius.vertical(
+            top: Radius.circular(DesignSystem.radiusLarge),
+          ),
+        ),
+        child: Column(
+          children: [
+            // 드래그 핸들
+            Container(
+              margin: const EdgeInsets.only(top: DesignSystem.spacing8),
+              width: 40,
+              height: 4,
+              decoration: BoxDecoration(
+                color: DesignSystem.divider,
+                borderRadius: BorderRadius.circular(
+                  DesignSystem.radiusCircular,
+                ),
+              ),
+            ),
+            // 헤더
+            Container(
+              padding: const EdgeInsets.all(DesignSystem.spacing20),
+              decoration: BoxDecoration(
+                color: DesignSystem.surface,
+                borderRadius: const BorderRadius.vertical(
+                  top: Radius.circular(DesignSystem.radiusLarge),
+                ),
+                boxShadow: DesignSystem.shadowSmall,
+              ),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text(
+                    '모임 변경',
+                    style: DesignSystem.headline3.copyWith(
+                      color: DesignSystem.textPrimary,
+                    ),
+                  ),
+                  IconButton(
+                    icon: const Icon(Icons.close),
+                    onPressed: () => Navigator.pop(context),
+                  ),
+                ],
+              ),
+            ),
+
+            // 모임 목록
+            Expanded(
+              child: ListView.builder(
+                padding: const EdgeInsets.all(DesignSystem.spacing20),
+                itemCount: 1, // 임시로 1개만 표시
+                itemBuilder: (context, index) {
+                  return _buildGroupListItem(_currentGroup);
+                },
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  /// 모임 목록 아이템
+  Widget _buildGroupListItem(Group group) {
+    return Card(
+      margin: const EdgeInsets.only(bottom: DesignSystem.spacing12),
+      elevation: DesignSystem.shadowSmall[0].blurRadius,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(DesignSystem.radiusMedium),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(DesignSystem.spacing16),
+        child: Row(
+          children: [
+            Icon(Icons.group, color: DesignSystem.textSecondary, size: 24),
+            const SizedBox(width: DesignSystem.spacing12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    group.name,
+                    style: DesignSystem.body1.copyWith(
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  if (group.description != null && group.description!.isNotEmpty)
+                    Text(
+                      group.description!,
+                      style: DesignSystem.caption.copyWith(
+                        color: DesignSystem.textSecondary,
+                      ),
+                    ),
+                ],
+              ),
+            ),
+            Icon(Icons.arrow_forward_ios, color: DesignSystem.textSecondary, size: 16),
+          ],
+        ),
+      ),
     );
   }
 }
