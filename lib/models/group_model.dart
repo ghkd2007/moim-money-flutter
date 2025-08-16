@@ -6,6 +6,7 @@ class Group {
   final String id;
   final String name;
   final String? description;
+  final String ownerId; // 모임장 ID 추가
   final List<String> members;
   final List<String> categories;
   final List<String> transactions;
@@ -16,6 +17,7 @@ class Group {
     required this.id,
     required this.name,
     this.description,
+    required this.ownerId, // 모임장 필수
     required this.members,
     required this.categories,
     required this.transactions,
@@ -29,6 +31,7 @@ class Group {
       id: id,
       name: data['name'] ?? '',
       description: data['description'],
+      ownerId: data['ownerId'] ?? '', // 모임장 ID 로드
       members: List<String>.from(data['members'] ?? []),
       categories: List<String>.from(data['categories'] ?? []),
       transactions: List<String>.from(data['transactions'] ?? []),
@@ -42,6 +45,7 @@ class Group {
     return {
       'name': name,
       'description': description,
+      'ownerId': ownerId, // 모임장 ID 저장
       'members': members,
       'categories': categories,
       'transactions': transactions,
@@ -55,6 +59,7 @@ class Group {
     String? id,
     String? name,
     String? description,
+    String? ownerId, // 모임장 ID 복사
     List<String>? members,
     List<String>? categories,
     List<String>? transactions,
@@ -65,6 +70,7 @@ class Group {
       id: id ?? this.id,
       name: name ?? this.name,
       description: description ?? this.description,
+      ownerId: ownerId ?? this.ownerId, // 모임장 ID 복사
       members: members ?? this.members,
       categories: categories ?? this.categories,
       transactions: transactions ?? this.transactions,
@@ -73,9 +79,19 @@ class Group {
     );
   }
 
+  /// 현재 사용자가 모임장인지 확인
+  bool isOwner(String userId) {
+    return ownerId == userId;
+  }
+
+  /// 현재 사용자가 모임 멤버인지 확인
+  bool isMember(String userId) {
+    return members.contains(userId);
+  }
+
   @override
   String toString() {
-    return 'Group(id: $id, name: $name, members: $members)';
+    return 'Group(id: $id, name: $name, ownerId: $ownerId, members: $members)';
   }
 
   @override

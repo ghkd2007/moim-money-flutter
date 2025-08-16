@@ -26,6 +26,7 @@ class DesignSystem {
   static const Color surface = Color(0xFFFFFFFF);
   static const Color textPrimary = Color(0xFF212121);
   static const Color textSecondary = Color(0xFF757575);
+  static const Color textTertiary = Color(0xFF9E9E9E); // 추가: 3차 텍스트 색상
   static const Color divider = Color(0xFFE0E0E0);
 
   /// 🎨 상태 색상 (현대적)
@@ -149,6 +150,15 @@ class DesignSystem {
     fontWeight: FontWeight.w600,
     color: textPrimary,
     height: 1.4,
+    letterSpacing: 0.1,
+  );
+
+  /// 버튼 텍스트
+  static const TextStyle button = TextStyle(
+    fontSize: 16,
+    fontWeight: FontWeight.w600,
+    color: textPrimary,
+    height: 1.2,
     letterSpacing: 0.1,
   );
 

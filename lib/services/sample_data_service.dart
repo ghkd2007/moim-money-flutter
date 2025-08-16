@@ -181,6 +181,7 @@ class SampleDataService {
         id: '1',
         name: '가족 모임',
         description: '가족과 함께하는 경제 관리',
+        ownerId: 'user1', // 모임장 추가
         members: ['user1', 'user2', 'user3'],
         categories: [
           'cat1',
