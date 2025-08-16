@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import '../../../constants/design_system.dart';
 import '../../../widgets/common/app_button.dart';
+import '../../../screens/auth/login_screen.dart';
 
 /// 설정 화면
 /// 사용자 정보, 앱 설정, 로그아웃 등을 관리하는 화면입니다.
@@ -12,143 +14,201 @@ class SettingsScreen extends StatefulWidget {
 }
 
 class _SettingsScreenState extends State<SettingsScreen> {
-  // 임시 사용자 데이터 (추후 Firebase에서 가져올 예정)
-  final Map<String, dynamic> _user = {
-    'name': '홍길동',
-    'email': 'hong@example.com',
-    'profileImage': null,
-  };
+  // Firebase Auth 사용자 정보
+  User? _currentUser;
+  bool _isLoading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadCurrentUser();
+  }
+
+  /// 현재 사용자 정보 로드
+  void _loadCurrentUser() {
+    _currentUser = FirebaseAuth.instance.currentUser;
+    setState(() {
+      _isLoading = false;
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: DesignSystem.background,
       body: SafeArea(
-        child: CustomScrollView(
-          slivers: [
-            // 메인 콘텐츠
-            SliverToBoxAdapter(
-              child: Padding(
-                padding: DesignSystem.getScreenPadding(context),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const SizedBox(height: DesignSystem.spacing24),
-
-                    // 사용자 프로필 카드
-                    _buildProfileCard(),
-
-                    const SizedBox(height: DesignSystem.spacing24),
-
-                    // 설정 메뉴들
-                    _buildSettingsSection('계정', [
-                      _buildSettingItem(
-                        icon: Icons.person_outline,
-                        title: '프로필 편집',
-                        subtitle: '이름, 프로필 사진 변경',
-                        onTap: () {
-                          // 프로필 편집 화면으로 이동
-                        },
-                      ),
-                      _buildSettingItem(
-                        icon: Icons.email_outlined,
-                        title: '이메일 변경',
-                        subtitle: '계정 이메일 주소 변경',
-                        onTap: () {
-                          // 이메일 변경 화면으로 이동
-                        },
-                      ),
-                      _buildSettingItem(
-                        icon: Icons.lock_outline,
-                        title: '비밀번호 변경',
-                        subtitle: '계정 비밀번호 변경',
-                        onTap: () {
-                          // 비밀번호 변경 화면으로 이동
-                        },
-                      ),
-                    ]),
-
-                    const SizedBox(height: DesignSystem.spacing24),
-
-                    _buildSettingsSection('앱 설정', [
-                      _buildSettingItem(
-                        icon: Icons.notifications_outlined,
-                        title: '알림 설정',
-                        subtitle: '푸시 알림, 이메일 알림 설정',
-                        onTap: () {
-                          // 알림 설정 화면으로 이동
-                        },
-                      ),
-                      _buildSettingItem(
-                        icon: Icons.language_outlined,
-                        title: '언어 설정',
-                        subtitle: '한국어',
-                        onTap: () {
-                          // 언어 설정 화면으로 이동
-                        },
-                      ),
-                      _buildSettingItem(
-                        icon: Icons.dark_mode_outlined,
-                        title: '다크 모드',
-                        subtitle: '자동',
-                        trailing: Switch(
-                          value: false,
-                          onChanged: (value) {
-                            // 다크 모드 토글
-                          },
-                        ),
-                      ),
-                    ]),
-
-                    const SizedBox(height: DesignSystem.spacing24),
-
-                    _buildSettingsSection('지원', [
-                      _buildSettingItem(
-                        icon: Icons.help_outline,
-                        title: '도움말',
-                        subtitle: '앱 사용법 및 FAQ',
-                        onTap: () {
-                          // 도움말 화면으로 이동
-                        },
-                      ),
-                      _buildSettingItem(
-                        icon: Icons.feedback_outlined,
-                        title: '피드백 보내기',
-                        subtitle: '의견 및 버그 리포트',
-                        onTap: () {
-                          // 피드백 화면으로 이동
-                        },
-                      ),
-                      _buildSettingItem(
-                        icon: Icons.info_outline,
-                        title: '앱 정보',
-                        subtitle: '버전 1.0.0',
-                        onTap: () {
-                          // 앱 정보 화면으로 이동
-                        },
-                      ),
-                    ]),
-
-                    const SizedBox(height: DesignSystem.spacing32),
-
-                    // 로그아웃 버튼
-                    AppButton(
-                      text: '로그아웃',
-                      onPressed: () {
-                        _showLogoutDialog(context);
-                      },
-                      type: AppButtonType.secondary,
-                      isFullWidth: true,
-                    ),
-
-                    const SizedBox(height: DesignSystem.spacing32),
-                  ],
-                ),
-              ),
-            ),
-          ],
-        ),
+        child: _isLoading
+            ? const Center(
+                child: CircularProgressIndicator(),
+              )
+            : _currentUser == null
+                ? _buildNoUserState()
+                : _buildSettingsContent(),
       ),
+    );
+  }
+
+  /// 사용자가 로그인하지 않은 상태
+  Widget _buildNoUserState() {
+    return Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(
+            Icons.person_off,
+            size: 80,
+            color: DesignSystem.textSecondary,
+          ),
+          const SizedBox(height: DesignSystem.spacing24),
+          Text(
+            '로그인이 필요합니다',
+            style: DesignSystem.headline3.copyWith(
+              color: DesignSystem.textPrimary,
+            ),
+          ),
+          const SizedBox(height: DesignSystem.spacing16),
+          AppButton(
+            text: '로그인 화면으로 이동',
+            onPressed: () {
+              Navigator.of(context).pushAndRemoveUntil(
+                MaterialPageRoute(
+                  builder: (context) => const LoginScreen(),
+                ),
+                (route) => false,
+              );
+            },
+            isFullWidth: true,
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// 설정 콘텐츠
+  Widget _buildSettingsContent() {
+    return CustomScrollView(
+      slivers: [
+        // 메인 콘텐츠
+        SliverToBoxAdapter(
+          child: Padding(
+            padding: DesignSystem.getScreenPadding(context),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const SizedBox(height: DesignSystem.spacing24),
+
+                // 사용자 프로필 카드
+                _buildProfileCard(),
+
+                const SizedBox(height: DesignSystem.spacing24),
+
+                // 설정 메뉴들
+                _buildSettingsSection('계정', [
+                  _buildSettingItem(
+                    icon: Icons.person_outline,
+                    title: '프로필 편집',
+                    subtitle: '이름, 프로필 사진 변경',
+                    onTap: () {
+                      // 프로필 편집 화면으로 이동
+                    },
+                  ),
+                  _buildSettingItem(
+                    icon: Icons.email_outlined,
+                    title: '이메일 변경',
+                    subtitle: '계정 이메일 주소 변경',
+                    onTap: () {
+                      // 이메일 변경 화면으로 이동
+                    },
+                  ),
+                  _buildSettingItem(
+                    icon: Icons.lock_outline,
+                    title: '비밀번호 변경',
+                    subtitle: '계정 비밀번호 변경',
+                    onTap: () {
+                      // 비밀번호 변경 화면으로 이동
+                    },
+                  ),
+                ]),
+
+                const SizedBox(height: DesignSystem.spacing24),
+
+                _buildSettingsSection('앱 설정', [
+                  _buildSettingItem(
+                    icon: Icons.notifications_outlined,
+                    title: '알림 설정',
+                    subtitle: '푸시 알림, 이메일 알림 설정',
+                    onTap: () {
+                      // 알림 설정 화면으로 이동
+                    },
+                  ),
+                  _buildSettingItem(
+                    icon: Icons.language_outlined,
+                    title: '언어 설정',
+                    subtitle: '한국어',
+                    onTap: () {
+                      // 언어 설정 화면으로 이동
+                    },
+                  ),
+                  _buildSettingItem(
+                    icon: Icons.dark_mode_outlined,
+                    title: '다크 모드',
+                    subtitle: '자동',
+                    trailing: Switch(
+                      value: false,
+                      onChanged: (value) {
+                        // 다크 모드 토글
+                      },
+                    ),
+                  ),
+                ]),
+
+                const SizedBox(height: DesignSystem.spacing24),
+
+                _buildSettingsSection('지원', [
+                  _buildSettingItem(
+                    icon: Icons.help_outline,
+                    title: '도움말',
+                    subtitle: '앱 사용법 및 FAQ',
+                    onTap: () {
+                      // 도움말 화면으로 이동
+                    },
+                  ),
+                  _buildSettingItem(
+                    icon: Icons.feedback_outlined,
+                    title: '피드백 보내기',
+                    subtitle: '의견 및 버그 리포트',
+                    onTap: () {
+                      // 피드백 화면으로 이동
+                    },
+                  ),
+                  _buildSettingItem(
+                    icon: Icons.info_outline,
+                    title: '앱 정보',
+                    subtitle: '버전 1.0.0',
+                    onTap: () {
+                      // 앱 정보 화면으로 이동
+                    },
+                  ),
+                ]),
+
+                const SizedBox(height: DesignSystem.spacing32),
+
+                // 로그아웃 버튼
+                AppButton(
+                  text: '로그아웃',
+                  onPressed: () {
+                    _showLogoutDialog(context);
+                  },
+                  type: AppButtonType.secondary,
+                  isFullWidth: true,
+                ),
+
+                const SizedBox(height: DesignSystem.spacing32),
+              ],
+            ),
+          ),
+        ),
+      ],
     );
   }
 
@@ -173,13 +233,13 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   DesignSystem.radiusCircular,
                 ),
               ),
-              child: _user['profileImage'] != null
+              child: _currentUser != null && _currentUser!.photoURL != null
                   ? ClipRRect(
                       borderRadius: BorderRadius.circular(
                         DesignSystem.radiusCircular,
                       ),
                       child: Image.network(
-                        _user['profileImage'],
+                        _currentUser!.photoURL!,
                         fit: BoxFit.cover,
                       ),
                     )
@@ -194,14 +254,14 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    _user['name'],
+                    _currentUser != null ? _currentUser!.displayName ?? '사용자' : '로딩 중...',
                     style: DesignSystem.headline3.copyWith(
                       fontWeight: FontWeight.w600,
                     ),
                   ),
                   const SizedBox(height: DesignSystem.spacing4),
                   Text(
-                    _user['email'],
+                    _currentUser != null ? _currentUser!.email ?? '이메일 없음' : '로딩 중...',
                     style: DesignSystem.body2.copyWith(
                       color: DesignSystem.textSecondary,
                     ),
@@ -304,19 +364,51 @@ class _SettingsScreenState extends State<SettingsScreen> {
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
-            child: Text('취소'),
+            child: const Text('취소'),
           ),
           AppButton(
             text: '로그아웃',
-            onPressed: () {
-              // 로그아웃 로직 (추후 Firebase 연동)
-              Navigator.pop(context);
-              // 로그인 화면으로 이동
+            onPressed: () async {
+              await _logout();
             },
             type: AppButtonType.secondary,
           ),
         ],
       ),
     );
+  }
+
+  /// 로그아웃 처리
+  Future<void> _logout() async {
+    try {
+      // Firebase Auth 로그아웃
+      await FirebaseAuth.instance.signOut();
+      
+      // 다이얼로그 닫기
+      if (mounted) {
+        Navigator.pop(context); // 다이얼로그 닫기
+        
+        // 로그인 화면으로 이동 (모든 이전 화면 제거)
+        Navigator.of(context).pushAndRemoveUntil(
+          MaterialPageRoute(
+            builder: (context) => const LoginScreen(),
+          ),
+          (route) => false, // 모든 이전 화면 제거
+        );
+      }
+    } catch (e) {
+      // 로그아웃 실패 시 에러 메시지
+      if (mounted) {
+        Navigator.pop(context); // 다이얼로그 닫기
+        
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('로그아웃 중 오류가 발생했습니다: $e'),
+            backgroundColor: DesignSystem.error,
+            duration: const Duration(seconds: 3),
+          ),
+        );
+      }
+    }
   }
 }

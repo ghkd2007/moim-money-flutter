@@ -16,7 +16,7 @@ class GroupScreen extends StatefulWidget {
 class _GroupScreenState extends State<GroupScreen> {
   // 현재 사용자 ID (추후 Firebase Auth에서 가져올 예정)
   final String _currentUserId = 'current_user_id';
-  
+
   // 내가 참여하고 있는 모든 모임 (추후 Firebase에서 가져올 예정)
   List<Group> _myGroups = [];
 
@@ -50,7 +50,7 @@ class _GroupScreenState extends State<GroupScreen> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     const SizedBox(height: DesignSystem.spacing24),
-                    
+
                     // 제목
                     Text(
                       '내 모임',
@@ -59,9 +59,9 @@ class _GroupScreenState extends State<GroupScreen> {
                         fontWeight: FontWeight.bold,
                       ),
                     ),
-                    
+
                     const SizedBox(height: DesignSystem.spacing8),
-                    
+
                     // 부제목
                     Text(
                       '참여하고 있는 모임들을 관리하세요',
@@ -69,7 +69,7 @@ class _GroupScreenState extends State<GroupScreen> {
                         color: DesignSystem.textSecondary,
                       ),
                     ),
-                    
+
                     const SizedBox(height: DesignSystem.spacing32),
                   ],
                 ),
@@ -90,16 +90,15 @@ class _GroupScreenState extends State<GroupScreen> {
               SliverPadding(
                 padding: DesignSystem.getScreenPadding(context),
                 sliver: SliverList(
-                  delegate: SliverChildBuilderDelegate(
-                    (context, index) {
-                      final group = _myGroups[index];
-                      return Padding(
-                        padding: const EdgeInsets.only(bottom: DesignSystem.spacing16),
-                        child: _buildGroupCard(group),
-                      );
-                    },
-                    childCount: _myGroups.length,
-                  ),
+                  delegate: SliverChildBuilderDelegate((context, index) {
+                    final group = _myGroups[index];
+                    return Padding(
+                      padding: const EdgeInsets.only(
+                        bottom: DesignSystem.spacing16,
+                      ),
+                      child: _buildGroupCard(group),
+                    );
+                  }, childCount: _myGroups.length),
                 ),
               ),
 
@@ -110,17 +109,8 @@ class _GroupScreenState extends State<GroupScreen> {
           ],
         ),
       ),
-      
-      // 모임 생성 버튼
-      floatingActionButton: FloatingActionButton.extended(
-        onPressed: () => _showCreateGroupScreen(),
-        backgroundColor: DesignSystem.primary,
-        icon: const Icon(Icons.add, color: Colors.white),
-        label: Text(
-          '모임 만들기',
-          style: DesignSystem.button.copyWith(color: Colors.white),
-        ),
-      ),
+
+      // 모임 생성 버튼 제거
     );
   }
 
@@ -145,9 +135,9 @@ class _GroupScreenState extends State<GroupScreen> {
               color: DesignSystem.textSecondary,
             ),
           ),
-          
+
           const SizedBox(height: DesignSystem.spacing24),
-          
+
           // 메시지
           Text(
             '아직 참여한 모임이 없어요',
@@ -157,9 +147,9 @@ class _GroupScreenState extends State<GroupScreen> {
             ),
             textAlign: TextAlign.center,
           ),
-          
+
           const SizedBox(height: DesignSystem.spacing12),
-          
+
           Text(
             '첫 번째 모임을 만들어보세요!\n친구들과 함께 지출을 관리할 수 있어요.',
             style: DesignSystem.body1.copyWith(
@@ -168,9 +158,9 @@ class _GroupScreenState extends State<GroupScreen> {
             ),
             textAlign: TextAlign.center,
           ),
-          
+
           const SizedBox(height: DesignSystem.spacing32),
-          
+
           // 모임 만들기 버튼
           AppButton(
             onPressed: () => _showCreateGroupScreen(),
@@ -185,14 +175,16 @@ class _GroupScreenState extends State<GroupScreen> {
   /// 모임 카드 위젯
   Widget _buildGroupCard(Group group) {
     final isOwner = group.isOwner(_currentUserId);
-    
+
     return Container(
       decoration: BoxDecoration(
         color: DesignSystem.surface,
         borderRadius: BorderRadius.circular(DesignSystem.radiusLarge),
         boxShadow: [DesignSystem.shadowSmall[0]],
         border: Border.all(
-          color: isOwner ? DesignSystem.primary.withOpacity(0.3) : Colors.transparent,
+          color: isOwner
+              ? DesignSystem.primary.withOpacity(0.3)
+              : Colors.transparent,
           width: 2,
         ),
       ),
@@ -215,7 +207,9 @@ class _GroupScreenState extends State<GroupScreen> {
                       height: 48,
                       decoration: BoxDecoration(
                         color: DesignSystem.primary.withOpacity(0.1),
-                        borderRadius: BorderRadius.circular(DesignSystem.radiusMedium),
+                        borderRadius: BorderRadius.circular(
+                          DesignSystem.radiusMedium,
+                        ),
                       ),
                       child: Icon(
                         Icons.group,
@@ -223,9 +217,9 @@ class _GroupScreenState extends State<GroupScreen> {
                         size: 24,
                       ),
                     ),
-                    
+
                     const SizedBox(width: DesignSystem.spacing16),
-                    
+
                     // 모임 정보
                     Expanded(
                       child: Column(
@@ -244,7 +238,7 @@ class _GroupScreenState extends State<GroupScreen> {
                                   overflow: TextOverflow.ellipsis,
                                 ),
                               ),
-                              
+
                               // 모임장 배지
                               if (isOwner)
                                 Container(
@@ -254,7 +248,9 @@ class _GroupScreenState extends State<GroupScreen> {
                                   ),
                                   decoration: BoxDecoration(
                                     color: DesignSystem.primary,
-                                    borderRadius: BorderRadius.circular(DesignSystem.radiusSmall),
+                                    borderRadius: BorderRadius.circular(
+                                      DesignSystem.radiusSmall,
+                                    ),
                                   ),
                                   child: Text(
                                     '모임장',
@@ -266,10 +262,13 @@ class _GroupScreenState extends State<GroupScreen> {
                                 ),
                             ],
                           ),
-                          
-                          if (group.description != null && group.description!.isNotEmpty)
+
+                          if (group.description != null &&
+                              group.description!.isNotEmpty)
                             Padding(
-                              padding: const EdgeInsets.only(top: DesignSystem.spacing4),
+                              padding: const EdgeInsets.only(
+                                top: DesignSystem.spacing4,
+                              ),
                               child: Text(
                                 group.description!,
                                 style: DesignSystem.body2.copyWith(
@@ -282,7 +281,7 @@ class _GroupScreenState extends State<GroupScreen> {
                         ],
                       ),
                     ),
-                    
+
                     // 더보기 버튼
                     PopupMenuButton<String>(
                       icon: Icon(
@@ -308,7 +307,10 @@ class _GroupScreenState extends State<GroupScreen> {
                               children: [
                                 Icon(Icons.delete, size: 20, color: Colors.red),
                                 SizedBox(width: 8),
-                                Text('모임 삭제', style: TextStyle(color: Colors.red)),
+                                Text(
+                                  '모임 삭제',
+                                  style: TextStyle(color: Colors.red),
+                                ),
                               ],
                             ),
                           ),
@@ -317,9 +319,16 @@ class _GroupScreenState extends State<GroupScreen> {
                             value: 'leave',
                             child: Row(
                               children: [
-                                Icon(Icons.exit_to_app, size: 20, color: Colors.orange),
+                                Icon(
+                                  Icons.exit_to_app,
+                                  size: 20,
+                                  color: Colors.orange,
+                                ),
                                 SizedBox(width: 8),
-                                Text('모임 나가기', style: TextStyle(color: Colors.orange)),
+                                Text(
+                                  '모임 나가기',
+                                  style: TextStyle(color: Colors.orange),
+                                ),
                               ],
                             ),
                           ),
@@ -338,9 +347,9 @@ class _GroupScreenState extends State<GroupScreen> {
                     ),
                   ],
                 ),
-                
+
                 const SizedBox(height: DesignSystem.spacing16),
-                
+
                 // 모임 통계
                 Row(
                   children: [
@@ -351,9 +360,9 @@ class _GroupScreenState extends State<GroupScreen> {
                       value: '${group.members.length}명',
                       color: DesignSystem.info,
                     ),
-                    
+
                     const SizedBox(width: DesignSystem.spacing24),
-                    
+
                     // 카테고리 수
                     _buildStatItem(
                       icon: Icons.category,
@@ -361,9 +370,9 @@ class _GroupScreenState extends State<GroupScreen> {
                       value: '${group.categories.length}개',
                       color: DesignSystem.warning,
                     ),
-                    
+
                     const SizedBox(width: DesignSystem.spacing24),
-                    
+
                     // 거래 내역 수
                     _buildStatItem(
                       icon: Icons.receipt_long,
@@ -373,9 +382,9 @@ class _GroupScreenState extends State<GroupScreen> {
                     ),
                   ],
                 ),
-                
+
                 const SizedBox(height: DesignSystem.spacing16),
-                
+
                 // 모임 생성일
                 Text(
                   '${group.createdAt.year}년 ${group.createdAt.month}월 ${group.createdAt.day}일 생성',
@@ -401,11 +410,7 @@ class _GroupScreenState extends State<GroupScreen> {
     return Expanded(
       child: Row(
         children: [
-          Icon(
-            icon,
-            size: 16,
-            color: color,
-          ),
+          Icon(icon, size: 16, color: color),
           const SizedBox(width: DesignSystem.spacing4),
           Expanded(
             child: Column(
@@ -436,9 +441,7 @@ class _GroupScreenState extends State<GroupScreen> {
   void _showCreateGroupScreen() {
     Navigator.push(
       context,
-      MaterialPageRoute(
-        builder: (context) => const CreateGroupScreen(),
-      ),
+      MaterialPageRoute(builder: (context) => const CreateGroupScreen()),
     ).then((_) {
       // 모임 생성 후 목록 새로고침
       _loadMyGroups();
