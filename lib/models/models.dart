@@ -5,6 +5,7 @@
 /// import 'package:moim_money_flutter/models/models.dart';
 /// ```
 
+// Models
 export 'user_model.dart';
 export 'group_model.dart';
 export 'category_model.dart';

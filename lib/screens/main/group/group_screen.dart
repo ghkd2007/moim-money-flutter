@@ -3,6 +3,7 @@ import '../../../constants/design_system.dart';
 import '../../../widgets/common/app_button.dart';
 import '../../../models/models.dart';
 import 'create_group_screen.dart';
+import 'join_group_screen.dart';
 
 /// 모임 화면
 /// 사용자가 참여하고 있는 모든 모임을 보여주고, 모임 생성 및 관리를 제공합니다.
@@ -117,57 +118,115 @@ class _GroupScreenState extends State<GroupScreen> {
   /// 모임이 없을 때 표시할 빈 상태
   Widget _buildEmptyState() {
     return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          // 빈 상태 아이콘
-          Container(
-            width: 120,
-            height: 120,
-            decoration: BoxDecoration(
-              color: DesignSystem.surface,
-              borderRadius: BorderRadius.circular(60),
-              boxShadow: [DesignSystem.shadowSmall[0]],
+      child: Padding(
+        padding: const EdgeInsets.all(DesignSystem.spacing24),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            // 빈 상태 아이콘
+            Container(
+              width: 120,
+              height: 120,
+              decoration: BoxDecoration(
+                color: DesignSystem.surface,
+                borderRadius: BorderRadius.circular(60),
+                boxShadow: [DesignSystem.shadowSmall[0]],
+              ),
+              child: Icon(
+                Icons.group_outlined,
+                size: 60,
+                color: DesignSystem.textSecondary,
+              ),
             ),
-            child: Icon(
-              Icons.group_outlined,
-              size: 60,
-              color: DesignSystem.textSecondary,
+
+            const SizedBox(height: DesignSystem.spacing24),
+
+            // 메인 메시지
+            Text(
+              '아직 참여한 모임이 없어요',
+              style: DesignSystem.headline3.copyWith(
+                color: DesignSystem.textPrimary,
+                fontWeight: FontWeight.w600,
+              ),
+              textAlign: TextAlign.center,
             ),
-          ),
 
-          const SizedBox(height: DesignSystem.spacing24),
+            const SizedBox(height: DesignSystem.spacing12),
 
-          // 메시지
-          Text(
-            '아직 참여한 모임이 없어요',
-            style: DesignSystem.headline3.copyWith(
-              color: DesignSystem.textPrimary,
-              fontWeight: FontWeight.w600,
+            // 부가 설명
+            Text(
+              '첫 번째 모임을 만들어보거나\n친구가 만든 모임에 참여해보세요!',
+              style: DesignSystem.body1.copyWith(
+                color: DesignSystem.textSecondary,
+                height: 1.5,
+              ),
+              textAlign: TextAlign.center,
             ),
-            textAlign: TextAlign.center,
-          ),
 
-          const SizedBox(height: DesignSystem.spacing12),
+            const SizedBox(height: DesignSystem.spacing32),
 
-          Text(
-            '첫 번째 모임을 만들어보세요!\n친구들과 함께 지출을 관리할 수 있어요.',
-            style: DesignSystem.body1.copyWith(
-              color: DesignSystem.textSecondary,
-              height: 1.5,
+            // 모임 만들기 버튼 (주요 액션)
+            AppButton(
+              onPressed: () => _showCreateGroupScreen(),
+              text: '모임 만들기',
+              isFullWidth: true,
+              size: AppButtonSize.large,
             ),
-            textAlign: TextAlign.center,
-          ),
 
-          const SizedBox(height: DesignSystem.spacing32),
+            const SizedBox(height: DesignSystem.spacing16),
 
-          // 모임 만들기 버튼
-          AppButton(
-            onPressed: () => _showCreateGroupScreen(),
-            text: '모임 만들기',
-            isFullWidth: true,
-          ),
-        ],
+            // 참여 코드로 입장 버튼 (보조 액션)
+            AppButton(
+              onPressed: () => _showJoinGroupScreen(),
+              text: '참여 코드로 입장',
+              type: AppButtonType.secondary,
+              isFullWidth: true,
+              size: AppButtonSize.large,
+            ),
+
+            const SizedBox(height: DesignSystem.spacing24),
+
+            // 도움말 텍스트
+            Container(
+              padding: const EdgeInsets.all(DesignSystem.spacing16),
+              decoration: BoxDecoration(
+                color: DesignSystem.surface,
+                borderRadius: BorderRadius.circular(DesignSystem.radiusMedium),
+                border: Border.all(color: DesignSystem.divider, width: 1),
+              ),
+              child: Column(
+                children: [
+                  Row(
+                    children: [
+                      Icon(
+                        Icons.lightbulb_outline,
+                        size: 20,
+                        color: DesignSystem.warning,
+                      ),
+                      const SizedBox(width: DesignSystem.spacing8),
+                      Text(
+                        '모임이란?',
+                        style: DesignSystem.body2.copyWith(
+                          fontWeight: FontWeight.w600,
+                          color: DesignSystem.textPrimary,
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: DesignSystem.spacing8),
+                  Text(
+                    '친구들과 함께 지출을 관리하고\n예산을 계획할 수 있는 공간이에요.',
+                    style: DesignSystem.caption.copyWith(
+                      color: DesignSystem.textSecondary,
+                      height: 1.4,
+                    ),
+                    textAlign: TextAlign.center,
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -565,5 +624,16 @@ class _GroupScreenState extends State<GroupScreen> {
         duration: const Duration(seconds: 2),
       ),
     );
+  }
+
+  /// 참여 코드로 입장 화면으로 이동
+  void _showJoinGroupScreen() {
+    Navigator.push(
+      context,
+      MaterialPageRoute(builder: (context) => const JoinGroupScreen()),
+    ).then((_) {
+      // 참여 코드로 입장 후 목록 새로고침
+      _loadMyGroups();
+    });
   }
 }

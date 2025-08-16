@@ -38,12 +38,10 @@ class _SettingsScreenState extends State<SettingsScreen> {
       backgroundColor: DesignSystem.background,
       body: SafeArea(
         child: _isLoading
-            ? const Center(
-                child: CircularProgressIndicator(),
-              )
+            ? const Center(child: CircularProgressIndicator())
             : _currentUser == null
-                ? _buildNoUserState()
-                : _buildSettingsContent(),
+            ? _buildNoUserState()
+            : _buildSettingsContent(),
       ),
     );
   }
@@ -54,11 +52,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Icon(
-            Icons.person_off,
-            size: 80,
-            color: DesignSystem.textSecondary,
-          ),
+          Icon(Icons.person_off, size: 80, color: DesignSystem.textSecondary),
           const SizedBox(height: DesignSystem.spacing24),
           Text(
             '로그인이 필요합니다',
@@ -71,9 +65,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
             text: '로그인 화면으로 이동',
             onPressed: () {
               Navigator.of(context).pushAndRemoveUntil(
-                MaterialPageRoute(
-                  builder: (context) => const LoginScreen(),
-                ),
+                MaterialPageRoute(builder: (context) => const LoginScreen()),
                 (route) => false,
               );
             },
@@ -254,14 +246,18 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    _currentUser != null ? _currentUser!.displayName ?? '사용자' : '로딩 중...',
+                    _currentUser != null
+                        ? _currentUser!.displayName ?? '사용자'
+                        : '로딩 중...',
                     style: DesignSystem.headline3.copyWith(
                       fontWeight: FontWeight.w600,
                     ),
                   ),
                   const SizedBox(height: DesignSystem.spacing4),
                   Text(
-                    _currentUser != null ? _currentUser!.email ?? '이메일 없음' : '로딩 중...',
+                    _currentUser != null
+                        ? _currentUser!.email ?? '이메일 없음'
+                        : '로딩 중...',
                     style: DesignSystem.body2.copyWith(
                       color: DesignSystem.textSecondary,
                     ),
@@ -383,16 +379,14 @@ class _SettingsScreenState extends State<SettingsScreen> {
     try {
       // Firebase Auth 로그아웃
       await FirebaseAuth.instance.signOut();
-      
+
       // 다이얼로그 닫기
       if (mounted) {
         Navigator.pop(context); // 다이얼로그 닫기
-        
+
         // 로그인 화면으로 이동 (모든 이전 화면 제거)
         Navigator.of(context).pushAndRemoveUntil(
-          MaterialPageRoute(
-            builder: (context) => const LoginScreen(),
-          ),
+          MaterialPageRoute(builder: (context) => const LoginScreen()),
           (route) => false, // 모든 이전 화면 제거
         );
       }
@@ -400,7 +394,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
       // 로그아웃 실패 시 에러 메시지
       if (mounted) {
         Navigator.pop(context); // 다이얼로그 닫기
-        
+
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text('로그아웃 중 오류가 발생했습니다: $e'),
